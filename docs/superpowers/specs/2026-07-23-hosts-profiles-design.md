@@ -53,8 +53,10 @@ HostProfile {
 
 ## 5. 存储实现（方案 A）
 
-- **索引**：独立文件 `filesDir/profiles/index.json`，存一段 JSON（用 Android 内置 `org.json.JSONArray/JSONObject` 手写序列化，**无需引入 Gson/Moshi**），记录每个方案的元数据（不含内容）。
+- **索引**：独立文件 `filesDir/profiles/index.tsv`，记录每个方案的元数据（不含内容）。
 - **内容**：每个方案的 hosts 文本存 `filesDir/profiles/<id>.hosts`。hosts 内容可能很大（URL 订阅上万行），独立文件便于流式读取与整文件覆写。
+
+> **实现细节修订（写实现计划时发现）**：原方案设想用 `org.json` 手写序列化索引。实测（`sh gradlew testGithubDebugUnitTest`）证实 `org.json.*` 在本项目纯 JVM 单元测试下和 `android.util.Log` 一样被替换成桩实现，调用即抛 `RuntimeException`（AGP 的 mockable-android-jar 对整个 `android.jar` 统一处理，`org.json` 不是例外）。加 `unitTests.returnDefaultValues = true` 只能让它不崩溃，但 `get*()` 会静默返回错误的默认值——对一个要验证"读写是否一致"的持久化仓储来说不可接受。为了不引入 Robolectric 这类重量级测试依赖（不符合"无需引入 Gson/Moshi"背后"保持轻量、真实可测"的初衷），索引改为**手写、零依赖的 TSV 行格式**（每行一个方案，字段以 `\t` 分隔：`id\ttitle\tenabled\torder\tsourceType\tsourceRef`），文件从 `index.json` 更名为 `index.tsv`。这是纯内部格式（不面向用户、不需要与外部工具互通），架构、行为、字段均不变，仅落盘格式调整。解析时跳过字段数不对的行并 `LogUtils.w` 记录，与 `DnsChange.handle_hosts` 现有的"跳过非法行"约定一致。
 
 ### `HostProfileRepository`（仓储模式）
 
