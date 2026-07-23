@@ -578,70 +578,64 @@ git commit -m "feat: add HostProfileRepository (TSV index + content files)"
 package com.github.xfalcon.vhosts.vservice;
 
 import org.junit.Test;
-import org.xbill.DNS.Address;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.Assert.*;
 
 public class DnsChangeTest {
 
+    // 测试与被测类同包（com.github.xfalcon.vhosts.vservice），
+    // 可直接读取 package-private 的 DOMAINS_IP_MAPS4/6，无需在生产代码里加测试专用方法。
+
     @Test
-    public void singleProfileParsing() throws Exception {
-        String content = "127.0.0.1 a.com\n127.0.0.1 b.com\n";
+    public void singleProfileParsing() {
         List<String> profiles = new ArrayList<>();
-        profiles.add(content);
+        profiles.add("127.0.0.1 a.com\n127.0.0.1 b.com\n");
         DnsChange.loadProfiles(profiles);
-        
-        // 验证通过查表来间接验证（实际项目中会通过 UDPOutput 查表）
-        // 这里我们直接访问 DOMAINS_IP_MAPS4（虽然是 private，单测可以用反射或 getter）
-        // 简化起见，我们在 DnsChange 加公开 getter
-        assertTrue("Should have parsed records", DnsChange.hasRecords());
+        assertEquals("127.0.0.1", DnsChange.DOMAINS_IP_MAPS4.get("a.com."));
+        assertEquals("127.0.0.1", DnsChange.DOMAINS_IP_MAPS4.get("b.com."));
     }
 
     @Test
-    public void multipleProfilesMergePriority() throws Exception {
-        // Profile 1 (靠前，优先级高)
-        String profile1 = "127.0.0.1 example.com\n";
-        // Profile 2 (靠后，优先级低)
-        String profile2 = "192.168.1.1 example.com\n127.0.0.1 other.com\n";
-        
-        List<String> profiles = new ArrayList<>();
-        profiles.add(profile1);
-        profiles.add(profile2);
-        
+    public void multipleProfilesMergeFrontPriority() {
+        // 靠前的方案优先：同域名，靠后方案不覆盖靠前方案（putIfAbsent 语义）
+        List<String> profiles = Arrays.asList(
+            "127.0.0.1 example.com\n",
+            "192.168.1.1 example.com\n127.0.0.1 other.com\n"
+        );
         DnsChange.loadProfiles(profiles);
-        
-        // example.com 应该映射到 Profile 1 的 127.0.0.1（靠前优先）
-        // other.com 应该映射到 Profile 2 的 127.0.0.1
-        assertEquals("Profile 1 IP should win for example.com", "127.0.0.1", DnsChange.lookup("example.com."));
-        assertEquals("Other.com from Profile 2", "127.0.0.1", DnsChange.lookup("other.com."));
+        assertEquals("127.0.0.1", DnsChange.DOMAINS_IP_MAPS4.get("example.com."));  // 靠前赢
+        assertEquals("127.0.0.1", DnsChange.DOMAINS_IP_MAPS4.get("other.com."));
     }
 
     @Test
-    public void wildcardSuffixMatching() throws Exception {
-        String content = "127.0.0.1 .example.com\n";
+    public void wildcardKeyStoredWithLeadingDot() {
+        // 通配符条目 ".example.com" 存成 key ".example.com."。
+        // 真正的后缀匹配发生在 handle_dns_packet（本任务不改动它），此处只验证 key 正确落库。
         List<String> profiles = new ArrayList<>();
-        profiles.add(content);
+        profiles.add("127.0.0.1 .example.com\n");
         DnsChange.loadProfiles(profiles);
-        
-        // .example.com 应该匹配 a.example.com
-        assertEquals("127.0.0.1", DnsChange.lookup("a.example.com."));
+        assertEquals("127.0.0.1", DnsChange.DOMAINS_IP_MAPS4.get(".example.com."));
     }
 
     @Test
-    public void ipv4AndIpv6Separation() throws Exception {
-        String content = "127.0.0.1 a.com\n2001:db8::1 b.com\n";
+    public void ipv4AndIpv6Separation() {
         List<String> profiles = new ArrayList<>();
-        profiles.add(content);
+        profiles.add("127.0.0.1 a.com\n2001:db8::1 b.com\n");
         DnsChange.loadProfiles(profiles);
-        
-        // A 记录和 AAAA 记录应该分别存在
-        assertTrue("IPv4 records should be loaded", DnsChange.hasIPv4Records());
-        assertTrue("IPv6 records should be loaded", DnsChange.hasIPv6Records());
+        assertEquals("127.0.0.1", DnsChange.DOMAINS_IP_MAPS4.get("a.com."));
+        assertEquals("2001:db8::1", DnsChange.DOMAINS_IP_MAPS6.get("b.com."));
+        assertNull("IPv6 域名不应进入 IPv4 表", DnsChange.DOMAINS_IP_MAPS4.get("b.com."));
+    }
+
+    @Test
+    public void emptyProfileListProducesEmptyMaps() {
+        DnsChange.loadProfiles(new ArrayList<String>());
+        assertTrue(DnsChange.DOMAINS_IP_MAPS4.isEmpty());
+        assertTrue(DnsChange.DOMAINS_IP_MAPS6.isEmpty());
     }
 }
 ```
@@ -662,7 +656,7 @@ static volatile ConcurrentHashMap<String, String> DOMAINS_IP_MAPS4 = null;
 static volatile ConcurrentHashMap<String, String> DOMAINS_IP_MAPS6 = null;
 ```
 
-在 `DnsChange` 类中添加新方法 `loadProfiles` 和测试辅助方法：
+在 `DnsChange` 类中添加新方法 `loadProfiles`（及其私有辅助 `parseAndMerge`）。测试直接读同包可见的 `DOMAINS_IP_MAPS4/6`，因此**不需要**在生产代码里加任何测试专用方法：
 
 ```java
 public static void loadProfiles(List<String> contentsInOrder) {
@@ -710,39 +704,6 @@ private static void parseAndMerge(String content, ConcurrentHashMap<String, Stri
         }
     }
     reader.close();
-}
-
-// 测试辅助方法（JUnit 访问用）
-public static boolean hasRecords() {
-    return DOMAINS_IP_MAPS4 != null && !DOMAINS_IP_MAPS4.isEmpty();
-}
-
-public static boolean hasIPv4Records() {
-    return DOMAINS_IP_MAPS4 != null && !DOMAINS_IP_MAPS4.isEmpty();
-}
-
-public static boolean hasIPv6Records() {
-    return DOMAINS_IP_MAPS6 != null && !DOMAINS_IP_MAPS6.isEmpty();
-}
-
-public static String lookup(String domain) {
-    if (DOMAINS_IP_MAPS4 == null) return null;
-    if (DOMAINS_IP_MAPS4.containsKey(domain)) {
-        return DOMAINS_IP_MAPS4.get(domain);
-    }
-    // 后缀匹配（与现有逻辑一致）
-    domain = "." + domain;
-    int j = 0;
-    while (true) {
-        int i = domain.indexOf(".", j);
-        if (i == -1) return null;
-        String suffix = domain.substring(i);
-        if (".".equals(suffix) || "".equals(suffix)) return null;
-        if (DOMAINS_IP_MAPS4.containsKey(suffix)) {
-            return DOMAINS_IP_MAPS4.get(suffix);
-        }
-        j = i + 1;
-    }
 }
 ```
 
