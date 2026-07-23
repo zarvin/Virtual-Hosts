@@ -12,6 +12,10 @@
         android:title="@string/active_hosts"
         app:showAsAction="always" />
     <item
+        android:id="@+id/action_dns_log"
+        android:title="@string/dns_log"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/action_settings"
         android:icon="@android:drawable/ic_menu_preferences"
         android:title="@string/action_settings"

@@ -142,9 +142,12 @@ public class VhostsActivity extends AppCompatActivity {
 
     @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
-        // 「生效 hosts」仅在 VPN 运行时可见
+        // 「生效 hosts」「DNS 日志」仅在 VPN 运行时可见
+        boolean running = VhostsService.isRunning();
         MenuItem active = menu.findItem(R.id.action_active);
-        if (active != null) active.setVisible(VhostsService.isRunning());
+        if (active != null) active.setVisible(running);
+        MenuItem dnsLog = menu.findItem(R.id.action_dns_log);
+        if (dnsLog != null) dnsLog.setVisible(running);
         return super.onPrepareOptionsMenu(menu);
     }
 
@@ -156,6 +159,9 @@ public class VhostsActivity extends AppCompatActivity {
             return true;
         } else if (id == R.id.action_active) {
             startActivity(new Intent(this, ActiveHostsActivity.class));
+            return true;
+        } else if (id == R.id.action_dns_log) {
+            startActivity(new Intent(this, DnsLogActivity.class));
             return true;
         } else if (id == R.id.action_settings) {
             startActivity(new Intent(this, SettingsActivity.class));

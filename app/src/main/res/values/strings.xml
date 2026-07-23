@@ -101,4 +101,7 @@
     <string name="import_done">Imported %d profiles</string>
     <string name="export_done">Exported</string>
     <string name="import_error">Import failed: invalid file</string>
+    <string name="dns_log">DNS Log</string>
+    <string name="no_dns_log">No DNS hits yet</string>
+    <string name="clear">Clear</string>
 </resources>

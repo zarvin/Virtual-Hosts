@@ -126,6 +126,9 @@
 
         <activity android:name=".ActiveHostsActivity"
                   android:exported="false"/>
+
+        <activity android:name=".DnsLogActivity"
+                  android:exported="false"/>
     </application>
 
 </manifest>

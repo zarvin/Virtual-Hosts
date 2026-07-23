@@ -96,6 +96,7 @@ public class DnsChange {
             packet.updateUDPBuffer(packet_buffer, packet_buffer.remaining());
             packet_buffer.position(packet_buffer.limit());
             LogUtils.d(TAG, "hit: " + question.getType() + " :" + query_domain.toString() + " :" + address.getHostName());
+            recordHit(query_domain.toString(), DOMAINS_IP_MAPS.get(query_string));
             return packet_buffer;
         } catch (Exception e) {
             LogUtils.d(TAG, "dns hook error", e);
@@ -165,6 +166,30 @@ public class DnsChange {
             String domain = e.getKey();
             if (domain.endsWith(".")) domain = domain.substring(0, domain.length() - 1);  // 去存储用的末尾点
             sb.append(e.getValue()).append(" ").append(domain).append("\n");
+        }
+    }
+
+    // DNS 命中日志：进程级环形缓冲，最近 MAX_HIT_LOG 条本地作答记录（最新在前）。
+    private static final int MAX_HIT_LOG = 300;
+    private static final java.util.ArrayDeque<String> HIT_LOG = new java.util.ArrayDeque<>();
+
+    static void recordHit(String domain, String ip) {
+        if (domain != null && domain.endsWith(".")) domain = domain.substring(0, domain.length() - 1);
+        synchronized (HIT_LOG) {
+            HIT_LOG.addFirst(ip + "  " + domain);
+            while (HIT_LOG.size() > MAX_HIT_LOG) HIT_LOG.removeLast();
+        }
+    }
+
+    public static java.util.List<String> getHitLog() {
+        synchronized (HIT_LOG) {
+            return new java.util.ArrayList<>(HIT_LOG);
+        }
+    }
+
+    public static void clearHitLog() {
+        synchronized (HIT_LOG) {
+            HIT_LOG.clear();
         }
     }
 
