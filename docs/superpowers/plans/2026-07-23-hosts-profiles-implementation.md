@@ -366,25 +366,24 @@ public class HostProfileRepository {
     private static final String TAG = "HostProfileRepository";
     private static final String INDEX_FILE = "index.tsv";
 
-    private File baseDir;
-    private File profilesDir;
-    private List<HostProfile> cache;
+    // 无状态：仅持有目录路径，每次读操作都从磁盘重读，
+    // 保证 Activity / Adapter / EditActivity 各自 new 的多个仓储实例始终看到最新数据。
+    private final File profilesDir;
 
-    public HostProfileRepository(File baseDir) {
-        this.baseDir = baseDir;
-        this.profilesDir = new File(baseDir, "profiles");
+    // 注意：构造参数直接作为方案目录使用（不再内部追加 "profiles"）。
+    // 调用方应传入 new File(context.getFilesDir(), "profiles")，最终数据落在 filesDir/profiles/。
+    public HostProfileRepository(File profilesDir) {
+        this.profilesDir = profilesDir;
         if (!profilesDir.exists()) {
             profilesDir.mkdirs();
         }
-        this.cache = new ArrayList<>();
-        loadIndex();
     }
 
-    private void loadIndex() {
-        cache.clear();
+    private List<HostProfile> loadIndex() {
+        List<HostProfile> list = new ArrayList<>();
         File indexFile = new File(profilesDir, INDEX_FILE);
         if (!indexFile.exists()) {
-            return;
+            return list;
         }
         try {
             String content = readFileContent(indexFile);
@@ -402,44 +401,46 @@ public class HostProfileRepository {
                     boolean enabled = Boolean.parseBoolean(fields[2]);
                     int order = Integer.parseInt(fields[3]);
                     String sourceType = fields[4];
-                    String sourceRef = fields.length > 5 ? fields[5] : null;
-                    cache.add(HostProfile.create(id, title, enabled, order, sourceType, sourceRef));
+                    String sourceRef = (fields.length > 5 && !fields[5].isEmpty()) ? fields[5] : null;
+                    list.add(HostProfile.create(id, title, enabled, order, sourceType, sourceRef));
                 } catch (Exception e) {
                     LogUtils.w(TAG, "Failed to parse index line: " + line, e);
                 }
             }
-            // 按 order 排序
-            Collections.sort(cache, (a, b) -> Integer.compare(a.getOrder(), b.getOrder()));
+            Collections.sort(list, (a, b) -> Integer.compare(a.getOrder(), b.getOrder()));
         } catch (Exception e) {
             LogUtils.e(TAG, "Failed to load index", e);
         }
+        return list;
     }
 
-    private void saveIndex() {
+    // 写失败必须向上抛（调用方 create/updateMeta/delete 都声明 throws），不静默吞掉。
+    private void saveIndex(List<HostProfile> list) throws IOException {
         File indexFile = new File(profilesDir, INDEX_FILE);
         StringBuilder sb = new StringBuilder();
-        for (HostProfile p : cache) {
+        for (HostProfile p : list) {
             sb.append(p.getId()).append("\t")
-              .append(p.getTitle()).append("\t")
+              .append(sanitize(p.getTitle())).append("\t")
               .append(p.isEnabled()).append("\t")
               .append(p.getOrder()).append("\t")
               .append(p.getSourceType()).append("\t")
-              .append(p.getSourceRef() != null ? p.getSourceRef() : "").append("\n");
+              .append(p.getSourceRef() != null ? sanitize(p.getSourceRef()) : "").append("\n");
         }
-        try {
-            writeFileContent(indexFile, sb.toString());
-        } catch (IOException e) {
-            LogUtils.e(TAG, "Failed to save index", e);
-        }
+        writeFileContent(indexFile, sb.toString());
+    }
+
+    // 标题/来源可能来自用户输入或文件名，剔除会破坏 TSV 行结构的字符。
+    private static String sanitize(String s) {
+        return s.replace("\t", " ").replace("\n", " ").replace("\r", " ");
     }
 
     public List<HostProfile> findAll() {
-        return new ArrayList<>(cache);
+        return loadIndex();
     }
 
     public List<HostProfile> findEnabled() {
         List<HostProfile> result = new ArrayList<>();
-        for (HostProfile p : cache) {
+        for (HostProfile p : loadIndex()) {
             if (p.isEnabled()) {
                 result.add(p);
             }
@@ -448,7 +449,7 @@ public class HostProfileRepository {
     }
 
     public HostProfile findById(String id) {
-        for (HostProfile p : cache) {
+        for (HostProfile p : loadIndex()) {
             if (p.getId().equals(id)) {
                 return p;
             }
@@ -465,43 +466,50 @@ public class HostProfileRepository {
     }
 
     public HostProfile create(String title, String sourceType, String sourceRef, String content) throws IOException {
+        List<HostProfile> list = loadIndex();
+        int maxOrder = -1;
+        for (HostProfile p : list) {
+            if (p.getOrder() > maxOrder) maxOrder = p.getOrder();
+        }
         String id = UUID.randomUUID().toString();
-        int nextOrder = cache.isEmpty() ? 0 : cache.get(cache.size() - 1).getOrder() + 1;
-        HostProfile p = HostProfile.create(id, title, true, nextOrder, sourceType, sourceRef);
-        cache.add(p);
-        Collections.sort(cache, (a, b) -> Integer.compare(a.getOrder(), b.getOrder()));
-        writeHostContent(id, content);
-        saveIndex();
+        HostProfile p = HostProfile.create(id, title, true, maxOrder + 1, sourceType, sourceRef);
+        writeHostContent(id, content == null ? "" : content);
+        list.add(p);
+        saveIndex(list);
         return p;
     }
 
     public void updateMeta(HostProfile updated) throws IOException {
-        for (int i = 0; i < cache.size(); i++) {
-            if (cache.get(i).getId().equals(updated.getId())) {
-                cache.set(i, updated);
+        List<HostProfile> list = loadIndex();
+        boolean found = false;
+        for (int i = 0; i < list.size(); i++) {
+            if (list.get(i).getId().equals(updated.getId())) {
+                list.set(i, updated);
+                found = true;
                 break;
             }
         }
-        Collections.sort(cache, (a, b) -> Integer.compare(a.getOrder(), b.getOrder()));
-        saveIndex();
+        if (!found) {
+            throw new IOException("Profile not found: " + updated.getId());
+        }
+        saveIndex(list);
     }
 
     public void updateContent(String id, String content) throws IOException {
-        writeHostContent(id, content);
+        writeHostContent(id, content == null ? "" : content);
     }
 
     public void delete(String id) throws IOException {
-        for (int i = 0; i < cache.size(); i++) {
-            if (cache.get(i).getId().equals(id)) {
-                cache.remove(i);
-                break;
-            }
+        List<HostProfile> list = loadIndex();
+        List<HostProfile> kept = new ArrayList<>();
+        for (HostProfile p : list) {
+            if (!p.getId().equals(id)) kept.add(p);
         }
         File contentFile = new File(profilesDir, id + ".hosts");
         if (contentFile.exists()) {
             contentFile.delete();
         }
-        saveIndex();
+        saveIndex(kept);
     }
 
     private void writeHostContent(String id, String content) throws IOException {
@@ -512,15 +520,25 @@ public class HostProfileRepository {
     private String readFileContent(File file) throws IOException {
         byte[] bytes = new byte[(int) file.length()];
         java.io.FileInputStream fis = new java.io.FileInputStream(file);
-        fis.read(bytes);
-        fis.close();
+        try {
+            int offset = 0;
+            int read;
+            while (offset < bytes.length && (read = fis.read(bytes, offset, bytes.length - offset)) != -1) {
+                offset += read;
+            }
+        } finally {
+            fis.close();
+        }
         return new String(bytes, StandardCharsets.UTF_8);
     }
 
     private void writeFileContent(File file, String content) throws IOException {
         FileOutputStream fos = new FileOutputStream(file);
-        fos.write(content.getBytes(StandardCharsets.UTF_8));
-        fos.close();
+        try {
+            fos.write(content.getBytes(StandardCharsets.UTF_8));
+        } finally {
+            fos.close();
+        }
     }
 }
 ```
@@ -615,7 +633,7 @@ public class DnsChangeTest {
     }
 
     @Test
-    public void ipv4And ipv6Separation() throws Exception {
+    public void ipv4AndIpv6Separation() throws Exception {
         String content = "127.0.0.1 a.com\n2001:db8::1 b.com\n";
         List<String> profiles = new ArrayList<>();
         profiles.add(content);
@@ -756,7 +774,7 @@ git commit -m "feat: support multi-profile merge with front-priority in DnsChang
 
 **Interfaces:**
 - Consumes: `HostProfileRepository`, `DnsChange.loadProfiles`
-- Produces: `HostsLoader.reloadIfRunning(Context)` (运行时重载)；`MigrationHelper.migrateIfNeeded(Context)` (一次性迁移)
+- Produces: `HostsLoader.reload(repo)` / `HostsLoader.reloadIfRunning(Context)`（运行时重载）；`MigrationHelper.migrateIfNeeded(repo, profilesDir, hostUri, isNet, content)`（一次性迁移）
 
 - [ ] **Step 1: 写迁移测试**
 
@@ -792,7 +810,7 @@ public class MigrationHelperTest {
         File migrationFlag = new File(baseDir, ".profiles_migrated");
         migrationFlag.createNewFile();
         
-        HostsLoader.migrateIfNeeded(repo, baseDir, "uri://old.txt", false, "net_hosts_content");
+        MigrationHelper.migrateIfNeeded(repo, baseDir, "uri://old.txt", false, "net_hosts_content");
         
         // 不应创建新方案
         assertEquals(0, repo.findAll().size());
@@ -802,7 +820,7 @@ public class MigrationHelperTest {
     public void migrateFromUri() throws Exception {
         String oldContent = "127.0.0.1 old.example.com\n";
         
-        HostsLoader.migrateIfNeeded(repo, baseDir, "uri://old.txt", false, oldContent);
+        MigrationHelper.migrateIfNeeded(repo, baseDir, "uri://old.txt", false, oldContent);
         
         java.util.List<com.github.xfalcon.vhosts.model.HostProfile> all = repo.findAll();
         assertEquals(1, all.size());
@@ -814,7 +832,7 @@ public class MigrationHelperTest {
     public void migrateFromNetHosts() throws Exception {
         String netContent = "127.0.0.1 net.example.com\n";
         
-        HostsLoader.migrateIfNeeded(repo, baseDir, null, true, netContent);
+        MigrationHelper.migrateIfNeeded(repo, baseDir, null, true, netContent);
         
         java.util.List<com.github.xfalcon.vhosts.model.HostProfile> all = repo.findAll();
         assertEquals(1, all.size());
@@ -825,74 +843,84 @@ public class MigrationHelperTest {
 
 - [ ] **Step 2: 实现 HostsLoader 和 MigrationHelper**
 
-创建 `app/src/main/java/com/github/xfalcon/vhosts/data/HostsLoader.java`：
+创建 `app/src/main/java/com/github/xfalcon/vhosts/data/HostsLoader.java`（只负责加载/重载）：
 
 ```java
 package com.github.xfalcon.vhosts.data;
 
 import android.content.Context;
-import android.content.SharedPreferences;
-import androidx.preference.PreferenceManager;
+import com.github.xfalcon.vhosts.model.HostProfile;
 import com.github.xfalcon.vhosts.util.LogUtils;
 import com.github.xfalcon.vhosts.vservice.DnsChange;
 import com.github.xfalcon.vhosts.vservice.VhostsService;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Executors;
 
 public class HostsLoader {
     private static final String TAG = "HostsLoader";
 
-    // 运行时重载：从仓储读已启用方案，合并并加载到 DnsChange
+    // 从仓储读所有已启用方案，按顺序（靠前优先）合并加载到 DnsChange。
+    // 会读文件，调用方需在后台线程执行。返回已加载的方案数量。
+    public static int reload(HostProfileRepository repo) throws Exception {
+        List<HostProfile> enabled = repo.findEnabled();
+        List<String> contents = new ArrayList<>();
+        for (HostProfile p : enabled) {
+            contents.add(repo.readContent(p.getId()));
+        }
+        DnsChange.loadProfiles(contents);
+        return enabled.size();
+    }
+
+    // 运行时重载：仅当 VPN 正在运行时，后台重建解析表，隧道不断。
     public static void reloadIfRunning(final Context context) {
         if (!VhostsService.isRunning()) {
             return;
         }
-        
-        // 后台线程执行，避免阻塞 UI
-        Executors.newSingleThreadExecutor().execute(new Runnable() {
-            @Override
+        new Thread() {
             public void run() {
                 try {
                     HostProfileRepository repo = new HostProfileRepository(new File(context.getFilesDir(), "profiles"));
-                    java.util.List<com.github.xfalcon.vhosts.model.HostProfile> enabled = repo.findEnabled();
-                    
-                    if (enabled.isEmpty()) {
-                        LogUtils.d(TAG, "No enabled profiles to load");
-                        return;
-                    }
-                    
-                    java.util.List<String> contents = new java.util.ArrayList<>();
-                    for (com.github.xfalcon.vhosts.model.HostProfile p : enabled) {
-                        String content = repo.readContent(p.getId());
-                        contents.add(content);
-                    }
-                    
-                    DnsChange.loadProfiles(contents);
-                    LogUtils.i(TAG, "Reloaded " + enabled.size() + " profiles");
+                    int n = reload(repo);
+                    LogUtils.i(TAG, "Reloaded " + n + " profiles");
                 } catch (Exception e) {
                     LogUtils.e(TAG, "Error reloading profiles", e);
                 }
             }
-        });
+        }.start();
     }
+}
+```
 
-    // 一次性迁移旧数据
-    public static void migrateIfNeeded(HostProfileRepository repo, File baseDir, String hostUri, boolean isNet, String content) throws Exception {
-        File migrationFlag = new File(baseDir, ".profiles_migrated");
+再创建 `app/src/main/java/com/github/xfalcon/vhosts/data/MigrationHelper.java`（只负责一次性迁移旧数据）：
+
+```java
+package com.github.xfalcon.vhosts.data;
+
+import com.github.xfalcon.vhosts.util.LogUtils;
+
+import java.io.File;
+
+public class MigrationHelper {
+    private static final String TAG = "MigrationHelper";
+    private static final String FLAG_FILE = ".profiles_migrated";
+
+    // 一次性迁移：把旧的单文件/网络 hosts 内容转成第一个已启用方案。
+    // profilesDir 即仓储目录，迁移标志与方案数据同目录，确保只迁移一次。
+    public static void migrateIfNeeded(HostProfileRepository repo, File profilesDir,
+                                       String hostUri, boolean isNet, String content) throws Exception {
+        File migrationFlag = new File(profilesDir, FLAG_FILE);
         if (migrationFlag.exists()) {
             LogUtils.d(TAG, "Migration already done");
             return;
         }
-
-        if (content != null && !content.isEmpty()) {
+        if (content != null && !content.trim().isEmpty()) {
             String sourceType = isNet ? "URL" : "FILE";
-            String sourceRef = isNet ? null : hostUri;  // 实际上 FILE 源也不记 ref
+            String sourceRef = isNet ? hostUri : null;  // URL 源记下地址便于将来刷新
             repo.create("导入的 hosts", sourceType, sourceRef, content);
             LogUtils.i(TAG, "Migrated legacy hosts to first profile");
         }
-
         migrationFlag.createNewFile();
     }
 }
@@ -900,49 +928,37 @@ public class HostsLoader {
 
 - [ ] **Step 3: 修改 VhostsService.setupHostFile()**
 
-打开 `VhostsService.java`，找到 `setupHostFile()` 方法，替换为：
+打开 `VhostsService.java`，找到 `setupHostFile()` 方法，整体替换为（复用 `HostsLoader.reload`，DRY）：
 
 ```java
 private void setupHostFile() {
-    try {
-        File profilesDir = new File(getFilesDir(), "profiles");
-        final HostProfileRepository repo = new HostProfileRepository(profilesDir);
-        
-        new Thread() {
-            public void run() {
-                try {
-                    java.util.List<com.github.xfalcon.vhosts.model.HostProfile> enabled = repo.findEnabled();
-                    if (enabled.isEmpty()) {
-                        Looper.prepare();
-                        Toast.makeText(getApplicationContext(), R.string.no_profiles_enabled, Toast.LENGTH_LONG).show();
-                        Looper.loop();
-                        return;
-                    }
-                    
-                    java.util.List<String> contents = new java.util.ArrayList<>();
-                    for (com.github.xfalcon.vhosts.model.HostProfile p : enabled) {
-                        String content = repo.readContent(p.getId());
-                        contents.add(content);
-                    }
-                    
-                    DnsChange.loadProfiles(contents);
-                    LogUtils.i(TAG, "Loaded " + enabled.size() + " profiles");
-                } catch (Exception e) {
-                    LogUtils.e(TAG, "Error loading profiles", e);
+    final HostProfileRepository repo = new HostProfileRepository(new File(getFilesDir(), "profiles"));
+    new Thread() {
+        public void run() {
+            try {
+                if (repo.findEnabled().isEmpty()) {
+                    Looper.prepare();
+                    Toast.makeText(getApplicationContext(), R.string.no_profiles_enabled, Toast.LENGTH_LONG).show();
+                    Looper.loop();
+                    return;
                 }
+                HostsLoader.reload(repo);
+                LogUtils.i(TAG, "Loaded enabled profiles");
+            } catch (Exception e) {
+                LogUtils.e(TAG, "Error loading profiles", e);
             }
-        }.start();
-    } catch (Exception e) {
-        LogUtils.e(TAG, "error setup host file service", e);
-    }
+        }
+    }.start();
 }
 ```
 
-同时在文件顶部加 import：
+同时在文件顶部加 import（`java.io.File` 已随现有 `import java.io.*;` 引入）：
 ```java
 import com.github.xfalcon.vhosts.data.HostProfileRepository;
 import com.github.xfalcon.vhosts.data.HostsLoader;
 ```
+
+旧 `setupHostFile()` 里对 `SettingsFragment.IS_NET` / `HOSTS_URI` / `NET_HOST_FILE` 的引用随替换一并移除（这些常量在 Task 10 会从 `SettingsFragment` 删除）。注意 `setupVPN()` 仍使用 `SettingsFragment.IS_CUS_DNS` / `IPV4_DNS`，保持不变。
 
 - [ ] **Step 4: 跑迁移测试**
 
@@ -1036,9 +1052,34 @@ git commit -m "feat: add runtime reload and legacy migration logic"
     <string name="records_count">已加载 %d 条记录</string>
 ```
 
-- [ ] **Step 3: 添加到其他语言文件**
+- [ ] **Step 3: 添加繁体中文（values-zh-rTW）**
 
-类似地添加到 `values-zh-rTW` 和 `values-vi`（简体中文对应繁体和越南语版本）
+在 `app/src/main/res/values-zh-rTW/strings.xml` 的 `</resources>` 前加：
+
+```xml
+    <string name="host_profiles_title">主機方案</string>
+    <string name="no_profiles">暫無方案，點擊新增開始使用</string>
+    <string name="add_profile">新增方案</string>
+    <string name="add_new">新建空白</string>
+    <string name="add_from_file">從檔案匯入</string>
+    <string name="add_from_url">從URL下載</string>
+    <string name="edit">編輯</string>
+    <string name="delete">刪除</string>
+    <string name="rename">重新命名</string>
+    <string name="save">儲存</string>
+    <string name="cancel">取消</string>
+    <string name="title">標題</string>
+    <string name="no_profiles_enabled">未啟用任何方案，請至少啟用一個</string>
+    <string name="confirm_delete">刪除此方案？</string>
+    <string name="launch">啟動</string>
+    <string name="stop">停止</string>
+    <string name="enter_title">輸入方案名稱</string>
+    <string name="invalid_url">URL格式不正確</string>
+    <string name="download_in_progress">下載中...</string>
+    <string name="records_count">已載入 %d 條記錄</string>
+```
+
+> 越南语 `values-vi` 无需新增：缺失的 key 会自动 fallback 到默认 `values/`（英文），这是 Android 资源机制，可接受。故 Step 5 的 `git add` 里 `values-vi/strings.xml` 实际不会有改动。
 
 - [ ] **Step 4: 编译验证**
 
@@ -1161,6 +1202,8 @@ public class HostListAdapter extends RecyclerView.Adapter<HostListAdapter.ViewHo
     public void onBindViewHolder(ViewHolder holder, int position) {
         final HostProfile profile = profiles.get(position);
         holder.titleView.setText(profile.getTitle());
+        // 先解绑再 setChecked，避免 RecyclerView 复用 ViewHolder 时误触发上一行的监听器
+        holder.switchView.setOnCheckedChangeListener(null);
         holder.switchView.setChecked(profile.isEnabled());
         
         // 点击条目进编辑页
@@ -1258,7 +1301,7 @@ git commit -m "feat: add HostListAdapter and list item layout"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="?attr/selectableItemBackground"
-            android:src="@drawable/ic_back"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
             android:contentDescription="@string/cancel" />
 
         <EditText
@@ -1291,7 +1334,7 @@ git commit -m "feat: add HostListAdapter and list item layout"
 </LinearLayout>
 ```
 
-> **注** : `@drawable/ic_back` 是假设使用系统返回图标。实际可用 `android:text="←"` 或使用现有的 fab 图标变种。
+> 返回按钮用系统图标 `@android:drawable/ic_menu_close_clear_cancel`（minSdk 19 起自带，无需新增 drawable）。`HostEditActivity` 中 `btnBack` 声明为 `ImageButton` 即可，与此布局一致。
 
 - [ ] **Step 2: 创建编辑页 Activity**
 
@@ -1426,7 +1469,7 @@ git commit -m "feat: add HostEditActivity for editing profiles"
 - Modify: `app/src/main/java/com/github/xfalcon/vhosts/VhostsActivity.java` (重构主逻辑)
 
 **Interfaces:**
-- Consumes: `HostListAdapter`、`HostEditActivity`、`HostsLoader.migrateIfNeeded`
+- Consumes: `HostListAdapter`、`HostEditActivity`、`MigrationHelper.migrateIfNeeded`
 - Produces: RecyclerView 列表 + 底部启停按钮 + 添加菜单
 
 - [ ] **Step 1: 重写主界面布局**
@@ -1548,7 +1591,7 @@ git commit -m "feat: add HostEditActivity for editing profiles"
 4. 加迁移逻辑
 5. 加添加菜单（新建 / 文件 / URL）
 
-由于代码很长，我提供核心框架：
+完整实现如下（覆盖原 VhostsActivity 全部行为，可直接使用）：
 
 ```java
 package com.github.xfalcon.vhosts;
@@ -1571,9 +1614,11 @@ import androidx.recyclerview.widget.RecyclerView;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.preference.PreferenceManager;
 
+import com.github.clans.fab.FloatingActionButton;
 import com.github.clans.fab.FloatingActionMenu;
 import com.github.xfalcon.vhosts.data.HostProfileRepository;
 import com.github.xfalcon.vhosts.data.HostsLoader;
+import com.github.xfalcon.vhosts.data.MigrationHelper;
 import com.github.xfalcon.vhosts.model.HostProfile;
 import com.github.xfalcon.vhosts.ui.HostListAdapter;
 import com.github.xfalcon.vhosts.util.HttpUtils;
@@ -1595,9 +1640,9 @@ public class VhostsActivity extends AppCompatActivity {
     private TextView emptyView;
     private ImageButton btnAdd, btnSettings;
     private FloatingActionMenu fabMenu;
-    private ImageButton fabBoot, fabDonation;
+    private FloatingActionButton fabBoot, fabDonation;
 
-    private androidx.localbroadcastmanager.content.BroadcastReceiver vpnStateReceiver = new androidx.localbroadcastmanager.content.BroadcastReceiver() {
+    private android.content.BroadcastReceiver vpnStateReceiver = new android.content.BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             if (VhostsService.BROADCAST_VPN_STATE.equals(intent.getAction())) {
@@ -1609,6 +1654,7 @@ public class VhostsActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        launch();  // 兼容旧的 "on"/"off" 深链接启动（外部快捷方式/自动化可能依赖）
         setContentView(R.layout.activity_vhosts);
 
         LogUtils.context = getApplicationContext();
@@ -1708,6 +1754,20 @@ public class VhostsActivity extends AppCompatActivity {
             btnLaunch.setText(R.string.stop);
         } else {
             btnLaunch.setText(R.string.launch);
+        }
+    }
+
+    // 兼容旧入口：通过 Intent data（"on"/"off"）从外部快捷方式/自动化触发启停后直接结束。
+    private void launch() {
+        Uri uri = getIntent().getData();
+        if (uri == null) return;
+        String data = uri.toString();
+        if ("on".equals(data)) {
+            if (!VhostsService.isRunning()) VhostsService.startVService(this, 1);
+            finish();
+        } else if ("off".equals(data)) {
+            VhostsService.stopVService(this);
+            finish();
         }
     }
 
@@ -1857,7 +1917,7 @@ public class VhostsActivity extends AppCompatActivity {
             }
 
             File profilesDir = new File(getFilesDir(), "profiles");
-            HostsLoader.migrateIfNeeded(repo, profilesDir, hostUri, isNet, content);
+            MigrationHelper.migrateIfNeeded(repo, profilesDir, hostUri, isNet, content);
         } catch (Exception e) {
             LogUtils.e(TAG, "Migration error", e);
         }
@@ -1901,12 +1961,24 @@ public class VhostsActivity extends AppCompatActivity {
     }
 
     private String getFileName(Uri uri) {
-        android.database.Cursor cursor = getContentResolver().query(uri, null, null, null, null);
-        int nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
-        cursor.moveToFirst();
-        String name = cursor.getString(nameIndex);
-        cursor.close();
-        return name.replaceAll("\\.[^.]*$", "");  // 去掉扩展名
+        android.database.Cursor cursor = null;
+        try {
+            cursor = getContentResolver().query(uri, null, null, null, null);
+            if (cursor != null && cursor.moveToFirst()) {
+                int nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
+                if (nameIndex >= 0) {
+                    String name = cursor.getString(nameIndex);
+                    if (name != null && !name.isEmpty()) {
+                        return name.replaceAll("\\.[^.]*$", "");  // 去掉扩展名
+                    }
+                }
+            }
+        } catch (Exception e) {
+            LogUtils.e(TAG, "getFileName error", e);
+        } finally {
+            if (cursor != null) cursor.close();
+        }
+        return "hosts";  // 取不到文件名时的兜底标题
     }
 }
 ```
