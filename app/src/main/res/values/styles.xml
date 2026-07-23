@@ -11,6 +11,14 @@
         <item name="android:editTextColor">@color/secondary_text</item>
         <item name="colorButtonNormal">@color/primary</item>
         <item name="dividerVertical">@color/divider</item>
+        <item name="alertDialogTheme">@style/AppAlertDialog</item>
+    </style>
+
+    <!-- AppTheme 把 textColorPrimary 设为白色（供 ActionBar 白字用），会导致 AlertDialog
+         标题白字白底不可见。这里给对话框单独指定深色标题。 -->
+    <style name="AppAlertDialog" parent="Theme.AppCompat.Light.Dialog.Alert">
+        <item name="android:textColorPrimary">@color/primary_text</item>
+        <item name="android:textColorSecondary">@color/secondary_text</item>
     </style>
 
     <style name="AppPreferenceTheme" parent="AppTheme">
