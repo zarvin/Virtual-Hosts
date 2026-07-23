@@ -31,4 +31,18 @@ public class FileUtils {
 
     }
 
+    public static String readFile(String filePath) throws Exception {
+        java.io.File file = new java.io.File(filePath);
+        java.io.FileInputStream fis = new java.io.FileInputStream(file);
+        java.io.BufferedReader br = new java.io.BufferedReader(new java.io.InputStreamReader(fis));
+        StringBuilder sb = new StringBuilder();
+        String line;
+        while ((line = br.readLine()) != null) {
+            sb.append(line).append("\n");
+        }
+        br.close();
+        fis.close();
+        return sb.toString().trim();
+    }
+
 }
