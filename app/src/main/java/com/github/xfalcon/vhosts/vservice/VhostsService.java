@@ -64,7 +64,6 @@ public class VhostsService extends VpnService {
     public static final String ACTION_DISCONNECT = VhostsService.class.getName() + ".STOP";
 
     private static boolean isRunning = false;
-    private static Thread threadHandleHosts = null;
     private ParcelFileDescriptor vpnInterface = null;
 
     private PendingIntent pendingIntent;
@@ -261,7 +260,6 @@ public class VhostsService extends VpnService {
     }
 
     private void stopVService() {
-        if (threadHandleHosts != null) threadHandleHosts.interrupt();
 //        unregisterNetReceiver();
         if (executorService != null) executorService.shutdownNow();
         isRunning = false;

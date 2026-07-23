@@ -44,6 +44,9 @@ jobs:
             echo "No KEYSTORE_BASE64 secret; release will be debug-signed."
           fi
 
+      - name: Run unit tests
+        run: ./gradlew testGithubDebugUnitTest --stacktrace
+
       - name: Build github release APK
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
