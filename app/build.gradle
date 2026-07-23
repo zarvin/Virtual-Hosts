@@ -58,6 +58,7 @@ dependencies {
     implementation 'com.android.support:cardview-v7:33.0.0'
     implementation 'com.android.support:preference-v7:33.0.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'androidx.recyclerview:recyclerview:1.3.0'
     implementation 'com.github.zcweng:switch-button:0.0.3@aar'
     implementation 'com.github.clans:fab:1.6.4'
     implementation 'com.android.billingclient:billing:6.0.1'
