@@ -90,6 +90,8 @@
     <string name="err_line_format">第 %1$d 行格式不对，应为「IP 域名」</string>
     <string name="err_line_ip">第 %1$d 行 IP 无效：%2$s</string>
     <string name="active_hosts">生效中的 hosts</string>
+    <string name="active_hosts_help_title">生效规则</string>
+    <string name="active_hosts_help_msg">多个方案同时开启时，按列表从上到下的顺序合并：\n\n• 靠前的方案优先级更高\n• 同一域名在多个方案中出现时，采用最靠前方案的解析\n• 长按拖动方案可调整顺序（顺序即优先级）\n\n下方是最终合并生效的 IP → 域名映射。</string>
     <string name="no_active_hosts">当前无生效记录</string>
     <string name="refresh">刷新</string>
     <string name="import_profiles">导入方案</string>

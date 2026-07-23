@@ -94,6 +94,8 @@
     <string name="err_line_format">Line %1$d: expected \"IP domain\"</string>
     <string name="err_line_ip">Line %1$d: invalid IP \"%2$s\"</string>
     <string name="active_hosts">Active Hosts</string>
+    <string name="active_hosts_help_title">How merging works</string>
+    <string name="active_hosts_help_msg">When multiple profiles are enabled, they are merged top-to-bottom by list order:\n\n• Profiles higher in the list take priority\n• If a domain appears in several profiles, the entry from the topmost profile wins\n• Long-press and drag to reorder (order = priority)\n\nBelow is the final merged IP → domain mapping in effect.</string>
     <string name="no_active_hosts">No active records</string>
     <string name="refresh">Refresh</string>
     <string name="import_profiles">Import profiles</string>

@@ -11,6 +11,15 @@
         <item name="alertDialogTheme">@style/AppAlertDialog</item>
         <!-- MaterialAlertDialogBuilder 走这个 -->
         <item name="materialAlertDialogTheme">@style/AppMaterialAlertDialog</item>
+        <!-- 状态栏/导航栏与顶栏统一为 M3 surface，图标明暗随日夜自适应
+             （浅色→深图标、深色→白图标），解决浅色白底白图标看不清、
+             以及主页/设置/编辑页状态栏颜色不一致 -->
+        <item name="android:statusBarColor">?attr/colorSurface</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="23">@bool/is_light_theme</item>
+        <item name="android:navigationBarColor">?attr/colorSurface</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">@bool/is_light_theme</item>
+        <!-- Material 3 页面切换动效（fade through） -->
+        <item name="android:windowAnimationStyle">@style/AppWindowAnimation</item>
         <!-- 关闭 Android 15 (API 35) 强制 edge-to-edge（低版本忽略此属性） -->
         <item name="android:windowOptOutEdgeToEdgeEnforcement" tools:targetApi="35">true</item>
     </style>
@@ -21,5 +30,13 @@
     <!-- 设置页沿用 M3 主题，文字色交给 M3 on-surface -->
     <style name="AppPreferenceTheme" parent="AppTheme" />
     <style name="AppPreferenceSettingsFragmentTheme" parent="@style/AppPreferenceTheme" />
+
+    <!-- Material 3 页面切换：进入淡入+轻微放大、退出淡出（fade through） -->
+    <style name="AppWindowAnimation" parent="@android:style/Animation.Activity">
+        <item name="android:activityOpenEnterAnimation">@anim/m3_enter</item>
+        <item name="android:activityOpenExitAnimation">@anim/m3_exit</item>
+        <item name="android:activityCloseEnterAnimation">@anim/m3_pop_enter</item>
+        <item name="android:activityCloseExitAnimation">@anim/m3_pop_exit</item>
+    </style>
 
 </resources>

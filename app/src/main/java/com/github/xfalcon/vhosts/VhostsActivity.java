@@ -124,6 +124,11 @@ public class VhostsActivity extends AppCompatActivity {
             if (VhostsService.isRunning()) {
                 VhostsService.stopVService(VhostsActivity.this);
             } else {
+                // 无启用方案时不启动，提示用户先启用至少一个
+                if (repo.findEnabled().isEmpty()) {
+                    Toast.makeText(this, R.string.no_profiles_enabled, Toast.LENGTH_SHORT).show();
+                    return;
+                }
                 startVPN();
             }
         });
@@ -320,13 +325,16 @@ public class VhostsActivity extends AppCompatActivity {
     }
 
     private void renameProfile(final HostProfile profile) {
-        final EditText input = new EditText(this);
+        android.view.View view = getLayoutInflater().inflate(R.layout.dialog_input, null);
+        final com.google.android.material.textfield.TextInputLayout til = view.findViewById(R.id.input_layout);
+        final com.google.android.material.textfield.TextInputEditText input = view.findViewById(R.id.input_edit);
+        til.setHint(getString(R.string.title));
         input.setText(profile.getTitle());
         new MaterialAlertDialogBuilder(this)
             .setTitle(R.string.rename)
-            .setView(input)
+            .setView(view)
             .setPositiveButton(R.string.dialog_confirm, (dialog, which) -> {
-                String title = input.getText().toString().trim();
+                String title = input.getText() == null ? "" : input.getText().toString().trim();
                 if (!title.isEmpty()) {
                     try {
                         repo.updateMeta(profile.withTitle(title));
@@ -342,6 +350,7 @@ public class VhostsActivity extends AppCompatActivity {
 
     private void confirmDelete(final HostProfile profile) {
         new MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.delete)
             .setMessage(R.string.confirm_delete)
             .setPositiveButton(R.string.delete, (dialog, which) -> {
                 try {
@@ -357,14 +366,16 @@ public class VhostsActivity extends AppCompatActivity {
     }
 
     private void addNewProfile() {
-        final EditText input = new EditText(this);
-        input.setHint(R.string.enter_title);
+        android.view.View view = getLayoutInflater().inflate(R.layout.dialog_input, null);
+        final com.google.android.material.textfield.TextInputLayout til = view.findViewById(R.id.input_layout);
+        final com.google.android.material.textfield.TextInputEditText input = view.findViewById(R.id.input_edit);
+        til.setHint(getString(R.string.enter_title));
 
         new MaterialAlertDialogBuilder(this)
             .setTitle(R.string.add_new)
-            .setView(input)
+            .setView(view)
             .setPositiveButton(R.string.dialog_confirm, (dialog, which) -> {
-                String title = input.getText().toString().trim();
+                String title = input.getText() == null ? "" : input.getText().toString().trim();
                 if (!title.isEmpty()) {
                     try {
                         HostProfile p = repo.create(title, HostProfile.TYPE_NEW, null, "");
@@ -443,15 +454,17 @@ public class VhostsActivity extends AppCompatActivity {
     }
 
     private void addFromUrl() {
-        final EditText input = new EditText(this);
-        input.setHint(R.string.add_from_url);
+        android.view.View view = getLayoutInflater().inflate(R.layout.dialog_input, null);
+        final com.google.android.material.textfield.TextInputLayout til = view.findViewById(R.id.input_layout);
+        final com.google.android.material.textfield.TextInputEditText input = view.findViewById(R.id.input_edit);
+        til.setHint(getString(R.string.add_from_url));
         input.setInputType(android.text.InputType.TYPE_TEXT_VARIATION_URI);
 
         new MaterialAlertDialogBuilder(this)
             .setTitle(R.string.add_from_url)
-            .setView(input)
+            .setView(view)
             .setPositiveButton(R.string.dialog_confirm, (dialog, which) -> {
-                String url = input.getText().toString().trim();
+                String url = input.getText() == null ? "" : input.getText().toString().trim();
                 if (!isValidUrl(url)) {
                     Toast.makeText(VhostsActivity.this, R.string.invalid_url, Toast.LENGTH_SHORT).show();
                     return;

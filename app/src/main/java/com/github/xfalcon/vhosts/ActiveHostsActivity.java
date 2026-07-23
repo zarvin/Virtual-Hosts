@@ -38,9 +38,23 @@ public class ActiveHostsActivity extends AppCompatActivity {
     }
 
     @Override
+    public boolean onCreateOptionsMenu(android.view.Menu menu) {
+        getMenuInflater().inflate(R.menu.active_hosts_menu, menu);
+        return true;
+    }
+
+    @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == android.R.id.home) {
+        int id = item.getItemId();
+        if (id == android.R.id.home) {
             finish();
+            return true;
+        } else if (id == R.id.action_help) {
+            new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.active_hosts_help_title)
+                .setMessage(R.string.active_hosts_help_msg)
+                .setPositiveButton(android.R.string.ok, null)
+                .show();
             return true;
         }
         return super.onOptionsItemSelected(item);
