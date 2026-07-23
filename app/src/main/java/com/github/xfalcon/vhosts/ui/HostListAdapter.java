@@ -6,7 +6,7 @@ import android.view.MotionEvent;
 import android.view.ViewGroup;
 import android.widget.CompoundButton;
 import android.widget.ImageView;
-import android.widget.Switch;
+import com.google.android.material.materialswitch.MaterialSwitch;
 import android.widget.TextView;
 import androidx.recyclerview.widget.RecyclerView;
 import com.github.xfalcon.vhosts.R;
@@ -143,7 +143,7 @@ public class HostListAdapter extends RecyclerView.Adapter<HostListAdapter.ViewHo
 
     public static class ViewHolder extends RecyclerView.ViewHolder {
         TextView titleView;
-        Switch switchView;
+        MaterialSwitch switchView;
         ImageView dragHandle;
 
         ViewHolder(android.view.View itemView) {

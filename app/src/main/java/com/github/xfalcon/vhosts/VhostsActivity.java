@@ -12,6 +12,7 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -66,8 +67,6 @@ public class VhostsActivity extends AppCompatActivity {
 
         recyclerView = findViewById(R.id.recycler_profiles);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
-        recyclerView.addItemDecoration(new androidx.recyclerview.widget.DividerItemDecoration(
-                this, androidx.recyclerview.widget.DividerItemDecoration.VERTICAL));
 
         adapter = new HostListAdapter(this, profilesDir);
         adapter.setOnProfileClickListener(new HostListAdapter.OnProfileClickListener() {
@@ -257,7 +256,7 @@ public class VhostsActivity extends AppCompatActivity {
             getString(R.string.add_from_url)
         };
 
-        new AlertDialog.Builder(this)
+        new MaterialAlertDialogBuilder(this)
             .setItems(options, (dialog, which) -> {
                 switch (which) {
                     case 0:
@@ -281,7 +280,7 @@ public class VhostsActivity extends AppCompatActivity {
         actions.add(getString(R.string.rename));
         if (isUrl) actions.add(getString(R.string.refresh));  // 仅 URL 订阅方案可刷新
         actions.add(getString(R.string.delete));
-        new AlertDialog.Builder(this)
+        new MaterialAlertDialogBuilder(this)
             .setTitle(profile.getTitle())
             .setItems(actions.toArray(new String[0]), (dialog, which) -> {
                 String action = actions.get(which);
@@ -323,7 +322,7 @@ public class VhostsActivity extends AppCompatActivity {
     private void renameProfile(final HostProfile profile) {
         final EditText input = new EditText(this);
         input.setText(profile.getTitle());
-        new AlertDialog.Builder(this)
+        new MaterialAlertDialogBuilder(this)
             .setTitle(R.string.rename)
             .setView(input)
             .setPositiveButton(R.string.dialog_confirm, (dialog, which) -> {
@@ -342,7 +341,7 @@ public class VhostsActivity extends AppCompatActivity {
     }
 
     private void confirmDelete(final HostProfile profile) {
-        new AlertDialog.Builder(this)
+        new MaterialAlertDialogBuilder(this)
             .setMessage(R.string.confirm_delete)
             .setPositiveButton(R.string.delete, (dialog, which) -> {
                 try {
@@ -361,7 +360,7 @@ public class VhostsActivity extends AppCompatActivity {
         final EditText input = new EditText(this);
         input.setHint(R.string.enter_title);
 
-        new AlertDialog.Builder(this)
+        new MaterialAlertDialogBuilder(this)
             .setTitle(R.string.add_new)
             .setView(input)
             .setPositiveButton(R.string.dialog_confirm, (dialog, which) -> {
@@ -448,7 +447,7 @@ public class VhostsActivity extends AppCompatActivity {
         input.setHint(R.string.add_from_url);
         input.setInputType(android.text.InputType.TYPE_TEXT_VARIATION_URI);
 
-        new AlertDialog.Builder(this)
+        new MaterialAlertDialogBuilder(this)
             .setTitle(R.string.add_from_url)
             .setView(input)
             .setPositiveButton(R.string.dialog_confirm, (dialog, which) -> {

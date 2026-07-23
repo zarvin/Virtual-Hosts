@@ -9,7 +9,7 @@ import android.view.MenuItem;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
-import androidx.appcompat.app.AlertDialog;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import androidx.appcompat.app.AppCompatActivity;
 import com.github.xfalcon.vhosts.data.HostProfileRepository;
 import com.github.xfalcon.vhosts.data.HostsLoader;
@@ -137,7 +137,7 @@ public class HostEditActivity extends AppCompatActivity {
             // 保存前校验 hosts 格式，有错则提示并中止
             String error = validateHosts(content);
             if (error != null) {
-                new AlertDialog.Builder(this)
+                new MaterialAlertDialogBuilder(this)
                     .setTitle(R.string.format_error)
                     .setMessage(error)
                     .setPositiveButton(android.R.string.ok, null)
