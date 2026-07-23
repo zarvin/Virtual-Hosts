@@ -35,6 +35,8 @@ import com.github.xfalcon.vhosts.NetworkReceiver;
 import com.github.xfalcon.vhosts.R;
 import com.github.xfalcon.vhosts.SettingsFragment;
 import com.github.xfalcon.vhosts.VhostsActivity;
+import com.github.xfalcon.vhosts.data.HostProfileRepository;
+import com.github.xfalcon.vhosts.data.HostsLoader;
 import com.github.xfalcon.vhosts.util.LogUtils;
 import org.xbill.DNS.Address;
 
@@ -133,37 +135,23 @@ public class VhostsService extends VpnService {
 
 
     private void setupHostFile() {
-        SharedPreferences settings = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this);
-        final boolean is_net = settings.getBoolean(SettingsFragment.IS_NET, false);
-        String uri_path = settings.getString(SettingsFragment.HOSTS_URI, null);
-        try {
-            final InputStream inputStream;
-            if (is_net)
-                inputStream = openFileInput(SettingsFragment.NET_HOST_FILE);
-            else
-                inputStream = getContentResolver().openInputStream(Uri.parse(uri_path));
-            new Thread() {
-                public void run() {
-                    if (DnsChange.handle_hosts(inputStream) == 0) {
+        final HostProfileRepository repo = new HostProfileRepository(new File(getFilesDir(), "profiles"));
+        new Thread() {
+            public void run() {
+                try {
+                    if (repo.findEnabled().isEmpty()) {
                         Looper.prepare();
-                        if(is_net){
-                            Toast.makeText(getApplicationContext(), R.string.no_net_record, Toast.LENGTH_LONG).show();
-                        }else{
-                            Toast.makeText(getApplicationContext(), R.string.no_local_record, Toast.LENGTH_LONG).show();
-                        }
+                        Toast.makeText(getApplicationContext(), R.string.no_profiles_enabled, Toast.LENGTH_LONG).show();
                         Looper.loop();
+                        return;
                     }
+                    HostsLoader.reload(repo);
+                    LogUtils.i(TAG, "Loaded enabled profiles");
+                } catch (Exception e) {
+                    LogUtils.e(TAG, "Error loading profiles", e);
                 }
-            }.start();
-
-        } catch (Exception e) {
-            if(is_net){
-                Toast.makeText(getApplicationContext(), R.string.no_net_record, Toast.LENGTH_LONG).show();
-            }else{
-                Toast.makeText(getApplicationContext(), R.string.no_local_record, Toast.LENGTH_LONG).show();
             }
-            LogUtils.e(TAG, "error setup host file service", e);
-        }
+        }.start();
     }
 
     private void setupVPN() {
