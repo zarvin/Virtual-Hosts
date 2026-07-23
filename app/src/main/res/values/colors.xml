@@ -24,4 +24,11 @@
     <color name="line_num">#999999</color>
     <color name="content_text">#212121</color>
     <color name="hint_text">#9E9E9E</color>
+
+    <!-- Material 3 品牌色（seed 派生，浅色调），values-night 提供深色调 -->
+    <color name="brand_primary">#0277BD</color>
+    <color name="brand_on_primary">#FFFFFF</color>
+    <color name="brand_primary_container">#CBE6FF</color>
+    <color name="brand_on_primary_container">#001D34</color>
+    <color name="white">#FFFFFF</color>
 </resources>

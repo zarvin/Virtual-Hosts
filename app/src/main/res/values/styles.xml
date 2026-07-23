@@ -1,37 +1,25 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Base application theme. -->
-    <style name="AppTheme" parent="Theme.AppCompat.DayNight">
-        <!-- Customize your theme here. -->
-        <item name="colorPrimaryDark">@color/primary_dark</item>
-        <item name="colorPrimary">@color/primary</item>
-        <item name="colorAccent">@color/accent</item>
-        <item name="android:textColorPrimary">@color/icons</item>
-        <item name="android:textColorSecondary">@color/secondary_text</item>
-        <item name="android:editTextColor">@color/secondary_text</item>
-        <item name="colorButtonNormal">@color/primary</item>
-        <item name="dividerVertical">@color/divider</item>
+    <!-- Material 3 主题：品牌蓝作为主色 seed，顶栏/表面用 M3 surface，
+         文字与图标走 on-surface，自动适配深浅，不再需要旧的 textColorPrimary=白 hack。 -->
+    <style name="AppTheme" parent="Theme.Material3.DayNight">
+        <item name="colorPrimary">@color/brand_primary</item>
+        <item name="colorOnPrimary">@color/brand_on_primary</item>
+        <item name="colorPrimaryContainer">@color/brand_primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/brand_on_primary_container</item>
+        <!-- AppCompat AlertDialog.Builder 走这个（Material3 对话框样式，日夜自适应） -->
         <item name="alertDialogTheme">@style/AppAlertDialog</item>
-        <!-- overflow 弹出菜单文字跟随日夜（否则被 textColorPrimary=白污染，浅色下看不见） -->
-        <item name="actionBarPopupTheme">@style/ThemeOverlay.AppCompat.DayNight</item>
-        <!-- 关闭 Android 15 (API 35) 强制 edge-to-edge，让 ActionBar 正常挤压内容，
-             避免列表顶部被 ActionBar 遮挡。低版本忽略此属性。 -->
+        <!-- MaterialAlertDialogBuilder 走这个 -->
+        <item name="materialAlertDialogTheme">@style/AppMaterialAlertDialog</item>
+        <!-- 关闭 Android 15 (API 35) 强制 edge-to-edge（低版本忽略此属性） -->
         <item name="android:windowOptOutEdgeToEdgeEnforcement" tools:targetApi="35">true</item>
     </style>
 
-    <!-- AppTheme 把 textColorPrimary 设为白色（供 ActionBar 白字用），会导致 AlertDialog
-         标题白字白底不可见。这里给对话框单独指定深色标题。 -->
-    <!-- 对话框跟随日夜（浅色白底深字 / 深色深底浅字） -->
-    <style name="AppAlertDialog" parent="Theme.AppCompat.DayNight.Dialog.Alert" />
+    <style name="AppAlertDialog" parent="Theme.Material3.DayNight.Dialog.Alert" />
+    <style name="AppMaterialAlertDialog" parent="ThemeOverlay.Material3.MaterialAlertDialog" />
 
-    <style name="AppPreferenceTheme" parent="AppTheme">
-        <item name="android:textColor">@color/content_text</item>
-<!--        <item name="android:editTextColor">@color/content_text</item>-->
-    </style>
-    <style name="AppPreferenceSettingsFragmentTheme" parent="@style/AppPreferenceTheme">
-
-        <item name="android:textColorPrimary">@color/content_text</item>
-
-    </style>
+    <!-- 设置页沿用 M3 主题，文字色交给 M3 on-surface -->
+    <style name="AppPreferenceTheme" parent="AppTheme" />
+    <style name="AppPreferenceSettingsFragmentTheme" parent="@style/AppPreferenceTheme" />
 
 </resources>

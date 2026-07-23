@@ -9,4 +9,10 @@
 
     <!-- 深色下让「暂无方案」等次要文字仍可见 -->
     <color name="secondary_text">#AAAAAA</color>
+
+    <!-- Material 3 品牌色深色调（深色模式主色更亮，配深色 on-primary） -->
+    <color name="brand_primary">#8ECDFF</color>
+    <color name="brand_on_primary">#00344F</color>
+    <color name="brand_primary_container">#004B70</color>
+    <color name="brand_on_primary_container">#CBE6FF</color>
 </resources>
