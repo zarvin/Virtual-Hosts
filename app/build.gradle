@@ -45,6 +45,10 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+    testOptions {
+        // JVM 单元测试中让 android.jar 的桩方法（如 android.util.Log）返回默认值而非抛异常
+        unitTests.returnDefaultValues = true
+    }
     namespace 'com.github.xfalcon.vhosts'
 
 }

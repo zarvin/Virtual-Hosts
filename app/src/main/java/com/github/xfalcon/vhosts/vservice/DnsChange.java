@@ -27,6 +27,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -34,8 +35,8 @@ import java.util.regex.Pattern;
 public class DnsChange {
 
     static String TAG = DnsChange.class.getSimpleName();
-    static ConcurrentHashMap<String, String> DOMAINS_IP_MAPS4 = null;
-    static ConcurrentHashMap<String, String> DOMAINS_IP_MAPS6 = null;
+    static volatile ConcurrentHashMap<String, String> DOMAINS_IP_MAPS4 = null;
+    static volatile ConcurrentHashMap<String, String> DOMAINS_IP_MAPS6 = null;
 
 
     public static ByteBuffer handle_dns_packet(Packet packet) {
@@ -138,6 +139,53 @@ public class DnsChange {
             LogUtils.d(TAG, "Hook dns error", e);
             return 0;
         }
+    }
+
+    public static void loadProfiles(List<String> contentsInOrder) {
+        ConcurrentHashMap<String, String> map4 = new ConcurrentHashMap<>();
+        ConcurrentHashMap<String, String> map6 = new ConcurrentHashMap<>();
+
+        // 按传入顺序（靠前优先）解析每个方案
+        for (String content : contentsInOrder) {
+            try {
+                parseAndMerge(content, map4, map6);
+            } catch (Exception e) {
+                LogUtils.e(TAG, "Error parsing profile", e);
+            }
+        }
+
+        // 原子替换（字段为 volatile，VPN 线程读到的始终是完整旧表或完整新表）
+        DOMAINS_IP_MAPS4 = map4;
+        DOMAINS_IP_MAPS6 = map6;
+        LogUtils.d(TAG, "Loaded profiles: " + map4.size() + " IPv4, " + map6.size() + " IPv6");
+    }
+
+    private static void parseAndMerge(String content, ConcurrentHashMap<String, String> map4, ConcurrentHashMap<String, String> map6) throws Exception {
+        String STR_COMMENT = "#";
+        String HOST_PATTERN_STR = "^\\s*(" + STR_COMMENT + "?)\\s*(\\S*)\\s*([^" + STR_COMMENT + "]*)" + STR_COMMENT + "?(.*)$";
+        java.util.regex.Pattern HOST_PATTERN = java.util.regex.Pattern.compile(HOST_PATTERN_STR);
+
+        java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.StringReader(content));
+        String line;
+        while ((line = reader.readLine()) != null) {
+            if (line.length() > 1000 || line.startsWith(STR_COMMENT)) continue;
+            java.util.regex.Matcher matcher = HOST_PATTERN.matcher(line);
+            if (matcher.find()) {
+                String ip = matcher.group(2).trim();
+                try {
+                    Address.getByAddress(ip);
+                } catch (Exception e) {
+                    continue;
+                }
+                String domain = matcher.group(3).trim() + ".";
+                if (ip.contains(":")) {
+                    map6.putIfAbsent(domain, ip);  // 靠前优先
+                } else {
+                    map4.putIfAbsent(domain, ip);  // 靠前优先
+                }
+            }
+        }
+        reader.close();
     }
 
 }
