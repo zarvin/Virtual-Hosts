@@ -7,6 +7,11 @@
         android:title="@string/add_profile"
         app:showAsAction="always" />
     <item
+        android:id="@+id/action_active"
+        android:icon="@android:drawable/ic_menu_view"
+        android:title="@string/active_hosts"
+        app:showAsAction="always" />
+    <item
         android:id="@+id/action_settings"
         android:icon="@android:drawable/ic_menu_preferences"
         android:title="@string/action_settings"

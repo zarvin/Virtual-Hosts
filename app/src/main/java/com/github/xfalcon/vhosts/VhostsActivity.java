@@ -64,6 +64,8 @@ public class VhostsActivity extends AppCompatActivity {
 
         recyclerView = findViewById(R.id.recycler_profiles);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        recyclerView.addItemDecoration(new androidx.recyclerview.widget.DividerItemDecoration(
+                this, androidx.recyclerview.widget.DividerItemDecoration.VERTICAL));
 
         adapter = new HostListAdapter(this, profilesDir);
         adapter.setOnProfileClickListener(new HostListAdapter.OnProfileClickListener() {
@@ -111,10 +113,21 @@ public class VhostsActivity extends AppCompatActivity {
     }
 
     @Override
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        // 「生效 hosts」仅在 VPN 运行时可见
+        MenuItem active = menu.findItem(R.id.action_active);
+        if (active != null) active.setVisible(VhostsService.isRunning());
+        return super.onPrepareOptionsMenu(menu);
+    }
+
+    @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         int id = item.getItemId();
         if (id == R.id.action_add) {
             showAddMenu();
+            return true;
+        } else if (id == R.id.action_active) {
+            startActivity(new Intent(this, ActiveHostsActivity.class));
             return true;
         } else if (id == R.id.action_settings) {
             startActivity(new Intent(this, SettingsActivity.class));
@@ -149,6 +162,7 @@ public class VhostsActivity extends AppCompatActivity {
         } else {
             btnLaunch.setText(R.string.launch);
         }
+        invalidateOptionsMenu();  // 刷新「生效 hosts」菜单项可见性
     }
 
     // 兼容旧入口：通过 Intent data（"on"/"off"）从外部快捷方式/自动化触发启停后直接结束。

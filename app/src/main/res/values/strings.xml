@@ -90,4 +90,9 @@
     <string name="err_create">Failed to create profile</string>
     <string name="err_import">Import failed</string>
     <string name="pref_ps_startup">Startup</string>
+    <string name="format_error">Format error</string>
+    <string name="err_line_format">Line %1$d: expected \"IP domain\"</string>
+    <string name="err_line_ip">Line %1$d: invalid IP \"%2$s\"</string>
+    <string name="active_hosts">Active Hosts</string>
+    <string name="no_active_hosts">No active records</string>
 </resources>

@@ -188,4 +188,21 @@ public class DnsChange {
         reader.close();
     }
 
+    // 当前生效的合并映射，格式化为「IP 域名」文本（供 UI 展示生效 hosts）。
+    public static String getActiveHostsText() {
+        StringBuilder sb = new StringBuilder();
+        appendMap(sb, DOMAINS_IP_MAPS4);
+        appendMap(sb, DOMAINS_IP_MAPS6);
+        return sb.toString();
+    }
+
+    private static void appendMap(StringBuilder sb, ConcurrentHashMap<String, String> map) {
+        if (map == null) return;
+        for (java.util.Map.Entry<String, String> e : map.entrySet()) {
+            String domain = e.getKey();
+            if (domain.endsWith(".")) domain = domain.substring(0, domain.length() - 1);  // 去存储用的末尾点
+            sb.append(e.getValue()).append(" ").append(domain).append("\n");
+        }
+    }
+
 }

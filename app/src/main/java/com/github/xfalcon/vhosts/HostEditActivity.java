@@ -2,32 +2,26 @@ package com.github.xfalcon.vhosts;
 
 import android.os.Bundle;
 import android.text.Editable;
-import android.text.Spannable;
 import android.text.TextWatcher;
-import android.text.style.ForegroundColorSpan;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import com.github.xfalcon.vhosts.data.HostProfileRepository;
 import com.github.xfalcon.vhosts.data.HostsLoader;
 import com.github.xfalcon.vhosts.model.HostProfile;
+import com.github.xfalcon.vhosts.util.HostsHighlighter;
 import com.github.xfalcon.vhosts.util.LogUtils;
+import org.xbill.DNS.Address;
 
 import java.io.File;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class HostEditActivity extends AppCompatActivity {
     private static final String TAG = "HostEditActivity";
     public static final String EXTRA_PROFILE_ID = "profile_id";
-
-    // 行首第一个 token 视为 IP（IPv4/IPv6 字符集）
-    private static final Pattern IP_PATTERN = Pattern.compile("^\\s*([0-9a-fA-F.:]+)");
-    private static final int COLOR_IP = 0xFF1976D2;      // 蓝：IP
-    private static final int COLOR_COMMENT = 0xFF999999; // 灰：# 注释
 
     private EditText editTitle;
     private EditText editContent;
@@ -64,8 +58,8 @@ public class HostEditActivity extends AppCompatActivity {
             public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
             public void onTextChanged(CharSequence s, int a, int b, int c) {}
             public void afterTextChanged(Editable s) {
-                updateLineNumbers(s);
-                highlight(s);
+                lineNumbers.setText(HostsHighlighter.lineNumbers(s));
+                HostsHighlighter.apply(s);
             }
         });
 
@@ -115,6 +109,16 @@ public class HostEditActivity extends AppCompatActivity {
                 Toast.makeText(this, R.string.title_empty, Toast.LENGTH_SHORT).show();
                 return;
             }
+            // 保存前校验 hosts 格式，有错则提示并中止
+            String error = validateHosts(content);
+            if (error != null) {
+                new AlertDialog.Builder(this)
+                    .setTitle(R.string.format_error)
+                    .setMessage(error)
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show();
+                return;
+            }
             HostProfile p = repo.findById(profileId);
             if (p == null) {
                 Toast.makeText(this, R.string.err_profile_not_found, Toast.LENGTH_SHORT).show();
@@ -131,41 +135,23 @@ public class HostEditActivity extends AppCompatActivity {
         }
     }
 
-    private void updateLineNumbers(CharSequence s) {
-        int lines = 1;
-        for (int i = 0; i < s.length(); i++) {
-            if (s.charAt(i) == '\n') lines++;
-        }
-        StringBuilder sb = new StringBuilder();
-        for (int i = 1; i <= lines; i++) {
-            sb.append(i).append('\n');
-        }
-        lineNumbers.setText(sb);
-    }
-
-    // hosts 简单高亮：# 注释整行灰；否则行首第一个 token（IP）蓝。
-    // setSpan 只改 span 不改字符，不会再触发 TextWatcher，无递归。
-    private void highlight(Editable s) {
-        ForegroundColorSpan[] old = s.getSpans(0, s.length(), ForegroundColorSpan.class);
-        for (ForegroundColorSpan sp : old) s.removeSpan(sp);
-
-        String text = s.toString();
-        int start = 0;
-        while (start <= text.length()) {
-            int nl = text.indexOf('\n', start);
-            int end = (nl == -1) ? text.length() : nl;
-            String line = text.substring(start, end);
-            String trimmed = line.trim();
-            if (trimmed.startsWith("#")) {
-                s.setSpan(new ForegroundColorSpan(COLOR_COMMENT), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-            } else if (!trimmed.isEmpty()) {
-                Matcher m = IP_PATTERN.matcher(line);
-                if (m.find()) {
-                    s.setSpan(new ForegroundColorSpan(COLOR_IP), start + m.start(1), start + m.end(1), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                }
+    // 逐行校验 hosts 格式：跳过空行与 # 注释；其余行必须是「IP 域名」，
+    // IP 用与 DnsChange 相同的 Address.getByAddress 验证。返回首个错误提示，全部合法则 null。
+    private String validateHosts(String content) {
+        String[] lines = content.split("\n", -1);
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i].trim();
+            if (line.isEmpty() || line.startsWith("#")) continue;
+            String[] parts = line.split("\\s+");
+            if (parts.length < 2 || parts[1].isEmpty()) {
+                return getString(R.string.err_line_format, i + 1);
             }
-            if (nl == -1) break;
-            start = nl + 1;
+            try {
+                Address.getByAddress(parts[0]);
+            } catch (Exception e) {
+                return getString(R.string.err_line_ip, i + 1, parts[0]);
+            }
         }
+        return null;
     }
 }

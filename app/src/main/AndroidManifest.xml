@@ -123,6 +123,9 @@
 
         <activity android:name=".HostEditActivity"
                   android:exported="false"/>
+
+        <activity android:name=".ActiveHostsActivity"
+                  android:exported="false"/>
     </application>
 
 </manifest>

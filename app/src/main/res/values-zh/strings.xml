@@ -86,4 +86,9 @@
     <string name="err_create">创建方案失败</string>
     <string name="err_import">导入失败</string>
     <string name="pref_ps_startup">开机自启动</string>
+    <string name="format_error">格式错误</string>
+    <string name="err_line_format">第 %1$d 行格式不对，应为「IP 域名」</string>
+    <string name="err_line_ip">第 %1$d 行 IP 无效：%2$s</string>
+    <string name="active_hosts">生效中的 hosts</string>
+    <string name="no_active_hosts">当前无生效记录</string>
 </resources>
