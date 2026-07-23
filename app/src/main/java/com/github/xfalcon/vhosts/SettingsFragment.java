@@ -1,74 +1,29 @@
-/*
- **Copyright (C) 2017  xfalcon
- **
- **This program is free software: you can redistribute it and/or modify
- **it under the terms of the GNU General Public License as published by
- **the Free Software Foundation, either version 3 of the License, or
- **(at your option) any later version.
- **
- **This program is distributed in the hope that it will be useful,
- **but WITHOUT ANY WARRANTY; without even the implied warranty of
- **MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- **GNU General Public License for more details.
- **
- **You should have received a copy of the GNU General Public License
- **along with this program.  If not, see <http://www.gnu.org/licenses/>.
- **
- */
-
 package com.github.xfalcon.vhosts;
 
-import android.app.AlertDialog;
-import android.content.Context;
 import android.content.SharedPreferences;
-import android.graphics.Color;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
-import android.view.*;
-import android.widget.LinearLayout;
-import android.widget.ProgressBar;
-import android.widget.TextView;
-import android.widget.Toast;
 import androidx.preference.*;
-import com.github.xfalcon.vhosts.util.FileUtils;
-import com.github.xfalcon.vhosts.util.HttpUtils;
 import com.github.xfalcon.vhosts.util.LogUtils;
-import com.github.xfalcon.vhosts.vservice.DnsChange;
 import org.xbill.DNS.Address;
-
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class SettingsFragment extends PreferenceFragmentCompat implements
         SharedPreferences.OnSharedPreferenceChangeListener {
 
     private static String TAG = SettingsFragment.class.getName();
 
-    public static final int VPN_REQUEST_CODE = 0x0F;
-    public static final int SELECT_FILE_CODE = 0x05;
     public static final String PREFS_NAME = SettingsFragment.class.getName();
-    public static final String IS_NET = "IS_NET";
-    public static final String HOSTS_URL = "HOSTS_URL";
-    public static final String HOSTS_URI = "HOST_URI";
-    public static final String NET_HOST_FILE = "net_hosts";
     public static final String IPV4_DNS = "IPV4_DNS";
     public static final String IS_CUS_DNS = "IS_CUS_DNS";
-
-    private Handler handler = null;
-
 
     @Override
     public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
         setPreferencesFromResource(R.xml.preferences, rootKey);
         final SharedPreferences sharedPreferences = getPreferenceScreen().getSharedPreferences();
         PreferenceScreen prefScreen = getPreferenceScreen();
-        handeleSummary(prefScreen, sharedPreferences);
-        Preference urlCustomPref = findPreference(HOSTS_URL);
+        handleSummary(prefScreen, sharedPreferences);
+
         Preference dnsCustomPref = findPreference(IPV4_DNS);
-
         dnsCustomPref.setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
-
             @Override
             public boolean onPreferenceChange(Preference preference, Object newValue) {
                 String ipv4_dns = (String)newValue;
@@ -77,137 +32,19 @@ public class SettingsFragment extends PreferenceFragmentCompat implements
                     return true;
                 } catch (Exception e) {
                     LogUtils.e(TAG, e.getMessage(), e);
-                    Toast.makeText(preference.getContext(), getString(R.string.dns4_error), Toast.LENGTH_LONG).show();
+                    android.widget.Toast.makeText(preference.getContext(), getString(R.string.dns4_error), android.widget.Toast.LENGTH_LONG).show();
                 }
                 return false;
             }
         });
-
-
-//        dnsCustomPref.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
-//
-//            public boolean onPreferenceClick(Preference preference) {
-//                String ipv4_dns = sharedPreferences.getString(IPV4_DNS, "");
-//                try {
-//                    Address.getByAddress(ipv4_dns);
-//                    return true;
-//                } catch (Exception e) {
-//                    LogUtils.e(TAG, e.getMessage(), e);
-//                    Toast.makeText(preference.getContext(), getString(R.string.url_error), Toast.LENGTH_LONG).show();
-//                }
-//                return false;
-//            }
-//        });
-
-        urlCustomPref.setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
-
-            @Override
-            public boolean onPreferenceChange(Preference preference, Object newValue) {
-                String url = (String)newValue;
-                if (isUrl(url)) {
-                    setProgressDialog(preference.getContext(), url);
-                    return true;
-                } else {
-                    Toast.makeText(preference.getContext(), getString(R.string.url_error), Toast.LENGTH_LONG).show();
-                    return false;
-                }
-            }
-        });
-
-//        urlCustomPref.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
-//
-//            public boolean onPreferenceClick(Preference preference) {
-//                String url = sharedPreferences.getString(HOSTS_URL, "");
-//                if (isUrl(url)) {
-//                    setProgressDialog(preference.getContext(), url);
-//                    return true;
-//                } else {
-//                    Toast.makeText(preference.getContext(), getString(R.string.url_error), Toast.LENGTH_LONG).show();
-//                    return false;
-//                }
-//
-//            }
-//        });
     }
 
-    public void setProgressDialog(final Context context, final String url) {
-
-        int llPadding = 30;
-        LinearLayout ll = new LinearLayout(context);
-        ll.setOrientation(LinearLayout.HORIZONTAL);
-        ll.setPadding(llPadding, llPadding, llPadding, llPadding);
-        ll.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams llParam = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT);
-        llParam.gravity = Gravity.CENTER;
-        ll.setLayoutParams(llParam);
-
-        ProgressBar progressBar = new ProgressBar(context);
-        progressBar.setIndeterminate(true);
-        progressBar.setPadding(0, 0, llPadding, 0);
-        progressBar.setLayoutParams(llParam);
-
-        llParam = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT);
-        llParam.gravity = Gravity.CENTER;
-        TextView tvText = new TextView(context);
-        tvText.setText(getString(R.string.download_alert));
-        tvText.setTextColor(Color.parseColor("#000000"));
-        tvText.setTextSize(20);
-        tvText.setLayoutParams(llParam);
-
-        ll.addView(progressBar);
-        ll.addView(tvText);
-
-        AlertDialog.Builder builder = new AlertDialog.Builder(context);
-        builder.setCancelable(true);
-        builder.setView(ll);
-
-        final AlertDialog dialog = builder.create();
-        Window window = dialog.getWindow();
-        if (window != null) {
-            WindowManager.LayoutParams layoutParams = new WindowManager.LayoutParams();
-            layoutParams.copyFrom(dialog.getWindow().getAttributes());
-            layoutParams.width = LinearLayout.LayoutParams.WRAP_CONTENT;
-            layoutParams.height = LinearLayout.LayoutParams.WRAP_CONTENT;
-            dialog.getWindow().setAttributes(layoutParams);
-        }
-        handler = new Handler();
-
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Looper.prepare();
-                    String result = HttpUtils.get(url);
-                    FileUtils.writeFile(context.openFileOutput(NET_HOST_FILE, Context.MODE_PRIVATE), result);
-                    Toast.makeText(context, String.format(getString(R.string.down_success), DnsChange.handle_hosts(context.openFileInput(NET_HOST_FILE))), Toast.LENGTH_LONG).show();
-                    handler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            dialog.hide();
-                        }
-                    });
-                    Looper.loop();
-                } catch (Exception e) {
-                    Toast.makeText(context, getString(R.string.down_error), Toast.LENGTH_LONG).show();
-                    LogUtils.e(TAG, e.getMessage(), e);
-                }
-
-            }
-        }).start();
-        dialog.show();
-
-    }
-
-    private void handeleSummary(PreferenceGroup preferenceGroup, SharedPreferences sharedPreferences) {
+    private void handleSummary(PreferenceGroup preferenceGroup, SharedPreferences sharedPreferences) {
         int count = preferenceGroup.getPreferenceCount();
-
         for (int i = 0; i < count; i++) {
             Preference p = preferenceGroup.getPreference(i);
             if (p instanceof PreferenceCategory) {
-                handeleSummary((PreferenceCategory) p, sharedPreferences);
+                handleSummary((PreferenceCategory) p, sharedPreferences);
             }
             if (!(p instanceof CheckBoxPreference)) {
                 String value = sharedPreferences.getString(p.getKey(), "");
@@ -228,16 +65,8 @@ public class SettingsFragment extends PreferenceFragmentCompat implements
         }
     }
 
-    public boolean isUrl(String str) {
-        String regex = "http(s)?://([\\w-]+\\.)+[\\w-]+(/[\\w- ./?%&=]*)?";
-        Pattern pattern = Pattern.compile(regex);
-        Matcher matcher = pattern.matcher(str);
-        return matcher.matches();
-    }
-
     @Override
-    public void onSharedPreferenceChanged(SharedPreferences sharedPreferences,
-                                          String key) {
+    public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
         Preference preference = findPreference(key);
         if (null != preference) {
             if (!(preference instanceof CheckBoxPreference)) {
@@ -255,13 +84,8 @@ public class SettingsFragment extends PreferenceFragmentCompat implements
     }
 
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        // create ContextThemeWrapper from the original Activity Context with the custom theme
-
-        // clone the inflater using the ContextThemeWrapper
+    public android.view.View onCreateView(android.view.LayoutInflater inflater, android.view.ViewGroup container, Bundle savedInstanceState) {
         inflater.getContext().setTheme(R.style.AppPreferenceSettingsFragmentTheme);
-
-        // inflate the layout using the cloned inflater, not default inflater
         return super.onCreateView(inflater, container, savedInstanceState);
     }
 
@@ -283,5 +107,4 @@ public class SettingsFragment extends PreferenceFragmentCompat implements
         getPreferenceScreen().getSharedPreferences()
                 .unregisterOnSharedPreferenceChangeListener(this);
     }
-
 }
