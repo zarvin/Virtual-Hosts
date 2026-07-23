@@ -2,8 +2,10 @@ package com.github.xfalcon.vhosts.ui;
 
 import android.content.Context;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.ViewGroup;
 import android.widget.CompoundButton;
+import android.widget.ImageView;
 import android.widget.Switch;
 import android.widget.TextView;
 import androidx.recyclerview.widget.RecyclerView;
@@ -15,6 +17,7 @@ import com.github.xfalcon.vhosts.util.LogUtils;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class HostListAdapter extends RecyclerView.Adapter<HostListAdapter.ViewHolder> {
@@ -24,10 +27,16 @@ public class HostListAdapter extends RecyclerView.Adapter<HostListAdapter.ViewHo
     private Context context;
     private HostProfileRepository repo;
     private OnProfileClickListener listener;
+    private OnStartDragListener dragListener;
 
     public interface OnProfileClickListener {
         void onProfileClick(HostProfile profile);
         void onProfileLongClick(HostProfile profile);
+    }
+
+    // 拖动手柄按下时通知 Activity 启动拖拽
+    public interface OnStartDragListener {
+        void onStartDrag(RecyclerView.ViewHolder vh);
     }
 
     public HostListAdapter(Context context, File profilesDir) {
@@ -40,9 +49,24 @@ public class HostListAdapter extends RecyclerView.Adapter<HostListAdapter.ViewHo
         this.listener = listener;
     }
 
+    public void setOnStartDragListener(OnStartDragListener l) {
+        this.dragListener = l;
+    }
+
     public void setProfiles(List<HostProfile> newProfiles) {
         this.profiles = newProfiles;
         notifyDataSetChanged();
+    }
+
+    // 当前（可能被拖拽重排后的）顺序，供保存 order 用
+    public List<HostProfile> getProfiles() {
+        return profiles;
+    }
+
+    public void onItemMove(int from, int to) {
+        if (from < 0 || to < 0 || from >= profiles.size() || to >= profiles.size()) return;
+        Collections.swap(profiles, from, to);
+        notifyItemMoved(from, to);
     }
 
     @Override
@@ -53,7 +77,7 @@ public class HostListAdapter extends RecyclerView.Adapter<HostListAdapter.ViewHo
     }
 
     @Override
-    public void onBindViewHolder(ViewHolder holder, int position) {
+    public void onBindViewHolder(final ViewHolder holder, int position) {
         final HostProfile profile = profiles.get(position);
         holder.titleView.setText(profile.getTitle());
         // 先解绑再 setChecked，避免 RecyclerView 复用 ViewHolder 时误触发上一行的监听器
@@ -69,13 +93,24 @@ public class HostListAdapter extends RecyclerView.Adapter<HostListAdapter.ViewHo
                 }
             }
         });
-        // 长按弹出重命名 / 删除
+        // 长按弹出重命名 / 删除 / 刷新
         holder.itemView.setOnLongClickListener(new android.view.View.OnLongClickListener() {
             @Override
             public boolean onLongClick(android.view.View v) {
                 if (listener != null) {
                     listener.onProfileLongClick(profile);
                     return true;
+                }
+                return false;
+            }
+        });
+
+        // 按住拖动手柄启动拖拽排序
+        holder.dragHandle.setOnTouchListener(new android.view.View.OnTouchListener() {
+            @Override
+            public boolean onTouch(android.view.View v, MotionEvent event) {
+                if (event.getActionMasked() == MotionEvent.ACTION_DOWN && dragListener != null) {
+                    dragListener.onStartDrag(holder);
                 }
                 return false;
             }
@@ -105,11 +140,13 @@ public class HostListAdapter extends RecyclerView.Adapter<HostListAdapter.ViewHo
     public static class ViewHolder extends RecyclerView.ViewHolder {
         TextView titleView;
         Switch switchView;
+        ImageView dragHandle;
 
         ViewHolder(android.view.View itemView) {
             super(itemView);
             titleView = itemView.findViewById(R.id.profile_title);
             switchView = itemView.findViewById(R.id.profile_switch);
+            dragHandle = itemView.findViewById(R.id.drag_handle);
         }
     }
 }

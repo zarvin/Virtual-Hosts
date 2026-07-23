@@ -91,4 +91,5 @@
     <string name="err_line_ip">第 %1$d 行 IP 无效：%2$s</string>
     <string name="active_hosts">生效中的 hosts</string>
     <string name="no_active_hosts">当前无生效记录</string>
+    <string name="refresh">刷新</string>
 </resources>

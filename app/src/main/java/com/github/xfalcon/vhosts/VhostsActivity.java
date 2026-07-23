@@ -83,6 +83,32 @@ public class VhostsActivity extends AppCompatActivity {
         });
         recyclerView.setAdapter(adapter);
 
+        // 拖拽排序：用手柄触发（isLongPressDragEnabled=false，长按仍留给菜单），拖完保存顺序
+        final androidx.recyclerview.widget.ItemTouchHelper touchHelper =
+            new androidx.recyclerview.widget.ItemTouchHelper(
+                new androidx.recyclerview.widget.ItemTouchHelper.SimpleCallback(
+                    androidx.recyclerview.widget.ItemTouchHelper.UP | androidx.recyclerview.widget.ItemTouchHelper.DOWN, 0) {
+                    @Override
+                    public boolean isLongPressDragEnabled() { return false; }
+                    @Override
+                    public boolean onMove(androidx.recyclerview.widget.RecyclerView rv,
+                                          androidx.recyclerview.widget.RecyclerView.ViewHolder vh,
+                                          androidx.recyclerview.widget.RecyclerView.ViewHolder target) {
+                        adapter.onItemMove(vh.getBindingAdapterPosition(), target.getBindingAdapterPosition());
+                        return true;
+                    }
+                    @Override
+                    public void onSwiped(androidx.recyclerview.widget.RecyclerView.ViewHolder vh, int dir) {}
+                    @Override
+                    public void clearView(androidx.recyclerview.widget.RecyclerView rv,
+                                          androidx.recyclerview.widget.RecyclerView.ViewHolder vh) {
+                        super.clearView(rv, vh);
+                        persistOrder();
+                    }
+                });
+        touchHelper.attachToRecyclerView(recyclerView);
+        adapter.setOnStartDragListener(vh -> touchHelper.startDrag(vh));
+
         emptyView = findViewById(R.id.empty_view);
         btnLaunch = findViewById(R.id.btn_launch);
 
@@ -156,6 +182,24 @@ public class VhostsActivity extends AppCompatActivity {
         recyclerView.setVisibility(profiles.isEmpty() ? android.view.View.GONE : android.view.View.VISIBLE);
     }
 
+    // 拖拽结束把当前顺序写回 order（越靠上 order 越小 = 合并优先级越高）
+    private void persistOrder() {
+        new Thread() {
+            public void run() {
+                try {
+                    java.util.List<HostProfile> list = adapter.getProfiles();
+                    for (int i = 0; i < list.size(); i++) {
+                        HostProfile p = list.get(i);
+                        if (p.getOrder() != i) repo.updateMeta(p.withOrder(i));
+                    }
+                    HostsLoader.reloadIfRunning(VhostsActivity.this);
+                } catch (Exception e) {
+                    LogUtils.e(TAG, "persistOrder error", e);
+                }
+            }
+        }.start();
+    }
+
     private void updateLaunchButton() {
         if (VhostsService.isRunning()) {
             btnLaunch.setText(R.string.stop);
@@ -214,17 +258,48 @@ public class VhostsActivity extends AppCompatActivity {
 
     // 长按方案：重命名 / 删除
     private void showProfileActions(final HostProfile profile) {
-        String[] actions = { getString(R.string.rename), getString(R.string.delete) };
+        final boolean isUrl = "URL".equals(profile.getSourceType()) && profile.getSourceRef() != null;
+        final java.util.List<String> actions = new java.util.ArrayList<>();
+        actions.add(getString(R.string.rename));
+        if (isUrl) actions.add(getString(R.string.refresh));  // 仅 URL 订阅方案可刷新
+        actions.add(getString(R.string.delete));
         new AlertDialog.Builder(this)
             .setTitle(profile.getTitle())
-            .setItems(actions, (dialog, which) -> {
-                if (which == 0) {
+            .setItems(actions.toArray(new String[0]), (dialog, which) -> {
+                String action = actions.get(which);
+                if (action.equals(getString(R.string.rename))) {
                     renameProfile(profile);
+                } else if (action.equals(getString(R.string.refresh))) {
+                    refreshProfile(profile);
                 } else {
                     confirmDelete(profile);
                 }
             })
             .show();
+    }
+
+    // 从记录的 URL 重新下载内容更新该方案（远程订阅刷新）
+    private void refreshProfile(final HostProfile profile) {
+        final String url = profile.getSourceRef();
+        if (url == null || url.isEmpty()) return;
+        Toast.makeText(this, R.string.download_in_progress, Toast.LENGTH_SHORT).show();
+        new Thread() {
+            public void run() {
+                try {
+                    final String content = HttpUtils.get(url);
+                    repo.updateContent(profile.getId(), content);
+                    HostsLoader.reloadIfRunning(VhostsActivity.this);
+                    runOnUiThread(() -> {
+                        int records = countRecords(content);
+                        Toast.makeText(VhostsActivity.this, getString(R.string.records_count, records), Toast.LENGTH_SHORT).show();
+                        refreshProfileList();
+                    });
+                } catch (Exception e) {
+                    LogUtils.e(TAG, "Refresh error", e);
+                    runOnUiThread(() -> Toast.makeText(VhostsActivity.this, R.string.down_error, Toast.LENGTH_SHORT).show());
+                }
+            }
+        }.start();
     }
 
     private void renameProfile(final HostProfile profile) {

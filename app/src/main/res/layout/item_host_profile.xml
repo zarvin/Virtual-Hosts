@@ -6,6 +6,15 @@
     android:padding="16dp"
     android:gravity="center_vertical">
 
+    <ImageView
+        android:id="@+id/drag_handle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="12dp"
+        android:src="@android:drawable/ic_menu_sort_by_size"
+        android:alpha="0.4"
+        android:contentDescription="@null" />
+
     <TextView
         android:id="@+id/profile_title"
         android:layout_width="0dp"
