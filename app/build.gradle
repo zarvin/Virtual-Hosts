@@ -8,8 +8,8 @@ android {
         applicationId "com.github.xfalcon.vhosts"
         minSdkVersion 19
         targetSdkVersion 36
-        versionCode 43
-        versionName "2.2.3"
+        versionCode 44
+        versionName "2.3.0"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }
