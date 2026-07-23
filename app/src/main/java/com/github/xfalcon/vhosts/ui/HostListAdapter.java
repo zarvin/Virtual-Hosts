@@ -27,6 +27,7 @@ public class HostListAdapter extends RecyclerView.Adapter<HostListAdapter.ViewHo
 
     public interface OnProfileClickListener {
         void onProfileClick(HostProfile profile);
+        void onProfileLongClick(HostProfile profile);
     }
 
     public HostListAdapter(Context context, File profilesDir) {
@@ -66,6 +67,17 @@ public class HostListAdapter extends RecyclerView.Adapter<HostListAdapter.ViewHo
                 if (listener != null) {
                     listener.onProfileClick(profile);
                 }
+            }
+        });
+        // 长按弹出重命名 / 删除
+        holder.itemView.setOnLongClickListener(new android.view.View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(android.view.View v) {
+                if (listener != null) {
+                    listener.onProfileLongClick(profile);
+                    return true;
+                }
+                return false;
             }
         });
 

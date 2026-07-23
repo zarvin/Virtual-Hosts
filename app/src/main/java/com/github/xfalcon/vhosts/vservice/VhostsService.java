@@ -140,9 +140,14 @@ public class VhostsService extends VpnService {
             public void run() {
                 try {
                     if (repo.findEnabled().isEmpty()) {
-                        Looper.prepare();
-                        Toast.makeText(getApplicationContext(), R.string.no_profiles_enabled, Toast.LENGTH_LONG).show();
-                        Looper.loop();
+                        // 清空解析表：DOMAINS_IP_MAPS 是进程级静态字段，不随 VPN 停止而清；
+                        // 否则关掉全部方案后再启动，会用上一次的旧表继续作答。
+                        DnsChange.loadProfiles(java.util.Collections.<String>emptyList());
+                        new android.os.Handler(Looper.getMainLooper()).post(new Runnable() {
+                            public void run() {
+                                Toast.makeText(getApplicationContext(), R.string.no_profiles_enabled, Toast.LENGTH_LONG).show();
+                            }
+                        });
                         return;
                     }
                     HostsLoader.reload(repo);
@@ -260,6 +265,8 @@ public class VhostsService extends VpnService {
 //        unregisterNetReceiver();
         if (executorService != null) executorService.shutdownNow();
         isRunning = false;
+        // 通知 UI VPN 已停止，让启停按钮切回「启动」（与 onCreate 里发送 running=true 对称）
+        LocalBroadcastManager.getInstance(this).sendBroadcast(new Intent(BROADCAST_VPN_STATE).putExtra("running", false));
         cleanup();
         stopSelf();
         LogUtils.d(TAG, "Stopping");

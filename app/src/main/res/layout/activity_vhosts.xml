@@ -1,42 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:padding="16dp">
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/host_profiles_title"
-            android:textSize="20sp"
-            android:textStyle="bold" />
-
-        <ImageButton
-            android:id="@+id/btn_add"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="?attr/selectableItemBackground"
-            android:src="@drawable/fab_setting"
-            android:contentDescription="@string/add_profile" />
-
-        <ImageButton
-            android:id="@+id/btn_settings"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:background="?attr/selectableItemBackground"
-            android:src="@drawable/fab_setting"
-            android:contentDescription="@string/action_settings" />
-    </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recycler_profiles"
@@ -54,51 +20,12 @@
         android:textSize="16sp"
         android:visibility="gone" />
 
-    <LinearLayout
+    <Button
+        android:id="@+id/btn_launch"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="16dp"
-        android:gravity="center">
-
-        <Button
-            android:id="@+id/btn_launch"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/launch"
-            android:paddingTop="20dp"
-            android:paddingBottom="20dp" />
-    </LinearLayout>
-
-    <com.github.clans.fab.FloatingActionMenu
-        android:id="@+id/fab_menu"
-        android:layout_width="wrap_content"
-        android:layout_height="216dp"
-        app:menu_labels_ellipsize="end"
-        app:menu_labels_singleLine="true"
-        app:menu_colorNormal="@color/primary"
-        app:menu_colorPressed="@color/primary_dark"
-        app:menu_colorRipple="@color/accent"
-        android:layout_gravity="bottom|end"
-        android:layout_margin="16dp">
-
-        <com.github.clans.fab.FloatingActionButton
-            android:id="@+id/fab_boot"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            app:fab_colorNormal="@color/fab_redNormal"
-            app:fab_colorPressed="@color/fb_redPressed"
-            android:src="@drawable/startup"
-            app:fab_label="@string/fab_label_boot"/>
-
-        <com.github.clans.fab.FloatingActionButton
-            android:id="@+id/fab_donation"
-            android:layout_width="wrap_content"
-            android:layout_height="match_parent"
-            android:src="@drawable/approve"
-            app:fab_colorNormal="@color/fab_yellowNormal"
-            app:fab_colorPressed="@color/fb_yellowPressed"
-            app:fab_label="@string/fab_label_donation"/>
-    </com.github.clans.fab.FloatingActionMenu>
+        android:layout_margin="16dp"
+        android:text="@string/launch"
+        android:paddingTop="20dp"
+        android:paddingBottom="20dp" />
 </LinearLayout>

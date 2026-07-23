@@ -77,4 +77,13 @@
     <string name="invalid_url">URL格式不正确</string>
     <string name="download_in_progress">下载中...</string>
     <string name="records_count">已加载 %d 条记录</string>
+    <string name="err_no_profile_id">错误：缺少方案 ID</string>
+    <string name="err_profile_not_found">错误：未找到方案</string>
+    <string name="err_load_profile">加载方案失败</string>
+    <string name="title_empty">标题不能为空</string>
+    <string name="saved">已保存</string>
+    <string name="err_save">保存失败</string>
+    <string name="err_create">创建方案失败</string>
+    <string name="err_import">导入失败</string>
+    <string name="pref_ps_startup">开机自启动</string>
 </resources>

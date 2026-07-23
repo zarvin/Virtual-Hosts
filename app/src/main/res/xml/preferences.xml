@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
     <PreferenceCategory
+            android:title="@string/pref_ps_startup">
+        <CheckBoxPreference
+                android:defaultValue="false"
+                android:key="RECONNECT_ON_REBOOT"
+                android:title="@string/fab_label_boot"/>
+    </PreferenceCategory>
+
+    <PreferenceCategory
             android:title="@string/pref_ps_set_cus_dns">
         <EditTextPreference
                 android:defaultValue="8.8.8.8"

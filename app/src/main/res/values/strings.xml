@@ -81,4 +81,13 @@
     <string name="invalid_url">Invalid URL format</string>
     <string name="download_in_progress">Downloading...</string>
     <string name="records_count">%d records loaded</string>
+    <string name="err_no_profile_id">Error: missing profile ID</string>
+    <string name="err_profile_not_found">Error: profile not found</string>
+    <string name="err_load_profile">Failed to load profile</string>
+    <string name="title_empty">Title cannot be empty</string>
+    <string name="saved">Saved</string>
+    <string name="err_save">Failed to save</string>
+    <string name="err_create">Failed to create profile</string>
+    <string name="err_import">Import failed</string>
+    <string name="pref_ps_startup">Startup</string>
 </resources>

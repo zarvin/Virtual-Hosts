@@ -81,6 +81,7 @@ public class HostProfileRepository {
 
     // 标题/来源可能来自用户输入或文件名，剔除会破坏 TSV 行结构的字符。
     private static String sanitize(String s) {
+        if (s == null) return "";
         return s.replace("\t", " ").replace("\n", " ").replace("\r", " ");
     }
 
