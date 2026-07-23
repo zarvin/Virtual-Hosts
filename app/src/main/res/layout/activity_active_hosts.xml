@@ -2,7 +2,7 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@android:color/white">
+    android:background="@color/content_bg">
 
     <ScrollView
         android:layout_width="match_parent"
@@ -18,10 +18,10 @@
                 android:id="@+id/line_numbers"
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent"
-                android:background="#F5F5F5"
+                android:background="@color/gutter_bg"
                 android:fontFamily="monospace"
                 android:textSize="14sp"
-                android:textColor="#999999"
+                android:textColor="@color/line_num"
                 android:gravity="top|end"
                 android:paddingLeft="10dp"
                 android:paddingRight="10dp"
@@ -39,7 +39,7 @@
                     android:layout_height="match_parent"
                     android:fontFamily="monospace"
                     android:textSize="14sp"
-                    android:textColor="@color/primary_text"
+                    android:textColor="@color/content_text"
                     android:gravity="top"
                     android:paddingLeft="10dp"
                     android:paddingTop="12dp"

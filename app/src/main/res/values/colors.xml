@@ -17,4 +17,11 @@
     <color name="fab_blackNormal">#29DDD6</color>
     <color name="fb_blackPressed">#28B9B3</color>
     <color name="ic_launcher_background">#2ecc71</color>
+
+    <!-- 语义颜色（编辑页/查看页），values-night 提供深色变体 -->
+    <color name="content_bg">#FFFFFF</color>
+    <color name="gutter_bg">#F5F5F5</color>
+    <color name="line_num">#999999</color>
+    <color name="content_text">#212121</color>
+    <color name="hint_text">#9E9E9E</color>
 </resources>

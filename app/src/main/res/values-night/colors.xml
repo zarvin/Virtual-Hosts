@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 深色模式变体（对应 values/colors.xml 的语义颜色） -->
+    <color name="content_bg">#121212</color>
+    <color name="gutter_bg">#1E1E1E</color>
+    <color name="line_num">#888888</color>
+    <color name="content_text">#E0E0E0</color>
+    <color name="hint_text">#777777</color>
+
+    <!-- 深色下让「暂无方案」等次要文字仍可见 -->
+    <color name="secondary_text">#AAAAAA</color>
+</resources>
