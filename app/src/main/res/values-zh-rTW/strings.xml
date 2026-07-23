@@ -91,4 +91,9 @@
     <string name="active_hosts">生效中的 hosts</string>
     <string name="no_active_hosts">目前無生效記錄</string>
     <string name="refresh">重新整理</string>
+    <string name="import_profiles">匯入方案</string>
+    <string name="export_profiles">匯出方案</string>
+    <string name="import_done">已匯入 %d 個方案</string>
+    <string name="export_done">已匯出</string>
+    <string name="import_error">匯入失敗：檔案格式不正確</string>
 </resources>

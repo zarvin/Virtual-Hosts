@@ -34,6 +34,8 @@ public class VhostsActivity extends AppCompatActivity {
     private static final String TAG = VhostsActivity.class.getSimpleName();
     private static final int VPN_REQUEST_CODE = 0x0F;
     private static final int SELECT_FILE_CODE = 0x05;
+    private static final int EXPORT_CODE = 0x06;
+    private static final int IMPORT_CODE = 0x07;
 
     private RecyclerView recyclerView;
     private HostListAdapter adapter;
@@ -157,6 +159,12 @@ public class VhostsActivity extends AppCompatActivity {
             return true;
         } else if (id == R.id.action_settings) {
             startActivity(new Intent(this, SettingsActivity.class));
+            return true;
+        } else if (id == R.id.action_export) {
+            exportProfiles();
+            return true;
+        } else if (id == R.id.action_import) {
+            importProfiles();
             return true;
         }
         return super.onOptionsItemSelected(item);
@@ -373,6 +381,58 @@ public class VhostsActivity extends AppCompatActivity {
         startActivityForResult(intent, SELECT_FILE_CODE);
     }
 
+    // 导出所有方案为 JSON 文件
+    private void exportProfiles() {
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.setType("application/json");
+        intent.putExtra(Intent.EXTRA_TITLE, "vhosts-profiles.json");
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        startActivityForResult(intent, EXPORT_CODE);
+    }
+
+    private void importProfiles() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.setType("*/*");
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        startActivityForResult(intent, IMPORT_CODE);
+    }
+
+    private void doExport(final Uri uri) {
+        new Thread() {
+            public void run() {
+                try {
+                    String json = com.github.xfalcon.vhosts.data.ImportExportHelper.export(repo);
+                    java.io.OutputStream os = getContentResolver().openOutputStream(uri);
+                    os.write(json.getBytes("UTF-8"));
+                    os.flush();
+                    os.close();
+                    runOnUiThread(() -> Toast.makeText(VhostsActivity.this, R.string.export_done, Toast.LENGTH_SHORT).show());
+                } catch (Exception e) {
+                    LogUtils.e(TAG, "Export error", e);
+                }
+            }
+        }.start();
+    }
+
+    private void doImport(final Uri uri) {
+        new Thread() {
+            public void run() {
+                try {
+                    String json = readFile(getContentResolver().openInputStream(uri));
+                    final int n = com.github.xfalcon.vhosts.data.ImportExportHelper.importJson(repo, json);
+                    HostsLoader.reloadIfRunning(VhostsActivity.this);
+                    runOnUiThread(() -> {
+                        Toast.makeText(VhostsActivity.this, getString(R.string.import_done, n), Toast.LENGTH_SHORT).show();
+                        refreshProfileList();
+                    });
+                } catch (Exception e) {
+                    LogUtils.e(TAG, "Import error", e);
+                    runOnUiThread(() -> Toast.makeText(VhostsActivity.this, R.string.import_error, Toast.LENGTH_SHORT).show());
+                }
+            }
+        }.start();
+    }
+
     private void addFromUrl() {
         final EditText input = new EditText(this);
         input.setHint(R.string.add_from_url);
@@ -479,6 +539,10 @@ public class VhostsActivity extends AppCompatActivity {
         if (requestCode == VPN_REQUEST_CODE && resultCode == RESULT_OK) {
             // VPN 授权通过
             startService(new Intent(this, VhostsService.class).setAction(VhostsService.ACTION_CONNECT));
+        } else if (requestCode == EXPORT_CODE && resultCode == RESULT_OK && data != null) {
+            doExport(data.getData());
+        } else if (requestCode == IMPORT_CODE && resultCode == RESULT_OK && data != null) {
+            doImport(data.getData());
         } else if (requestCode == SELECT_FILE_CODE && resultCode == RESULT_OK && data != null) {
             // 文件导入（放后台线程读取，避免大文件卡 UI）
             final Uri fileUri = data.getData();

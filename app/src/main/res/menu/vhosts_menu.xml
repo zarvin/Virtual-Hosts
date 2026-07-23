@@ -16,4 +16,12 @@
         android:icon="@android:drawable/ic_menu_preferences"
         android:title="@string/action_settings"
         app:showAsAction="always" />
+    <item
+        android:id="@+id/action_import"
+        android:title="@string/import_profiles"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_export"
+        android:title="@string/export_profiles"
+        app:showAsAction="never" />
 </menu>

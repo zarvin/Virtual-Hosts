@@ -96,4 +96,9 @@
     <string name="active_hosts">Active Hosts</string>
     <string name="no_active_hosts">No active records</string>
     <string name="refresh">Refresh</string>
+    <string name="import_profiles">Import profiles</string>
+    <string name="export_profiles">Export profiles</string>
+    <string name="import_done">Imported %d profiles</string>
+    <string name="export_done">Exported</string>
+    <string name="import_error">Import failed: invalid file</string>
 </resources>
