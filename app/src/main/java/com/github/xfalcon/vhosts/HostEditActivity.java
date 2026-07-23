@@ -1,6 +1,7 @@
 package com.github.xfalcon.vhosts;
 
 import android.os.Bundle;
+import android.os.Handler;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.Menu;
@@ -23,12 +24,19 @@ public class HostEditActivity extends AppCompatActivity {
     private static final String TAG = "HostEditActivity";
     public static final String EXTRA_PROFILE_ID = "profile_id";
 
+    // 高亮 debounce 延迟；超过该长度（约数千行）跳过高亮，只保留行号，避免超大订阅卡顿。
+    private static final long HIGHLIGHT_DEBOUNCE_MS = 250;
+    private static final int HIGHLIGHT_MAX_LEN = 120000;
+
     private EditText editTitle;
     private EditText editContent;
     private TextView lineNumbers;
 
     private String profileId;
     private HostProfileRepository repo;
+
+    private final Handler highlightHandler = new Handler();
+    private Runnable highlightRunnable;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -54,16 +62,33 @@ public class HostEditActivity extends AppCompatActivity {
             return;
         }
 
+        highlightRunnable = new Runnable() {
+            public void run() {
+                Editable e = editContent.getText();
+                if (e != null) HostsHighlighter.apply(e);
+            }
+        };
+
         editContent.addTextChangedListener(new TextWatcher() {
             public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
             public void onTextChanged(CharSequence s, int a, int b, int c) {}
             public void afterTextChanged(Editable s) {
-                lineNumbers.setText(HostsHighlighter.lineNumbers(s));
-                HostsHighlighter.apply(s);
+                lineNumbers.setText(HostsHighlighter.lineNumbers(s));  // 行号即时更新
+                // 高亮去抖：连续输入时不每次全量重算；超大文本跳过高亮避免卡顿。
+                highlightHandler.removeCallbacks(highlightRunnable);
+                if (s.length() <= HIGHLIGHT_MAX_LEN) {
+                    highlightHandler.postDelayed(highlightRunnable, HIGHLIGHT_DEBOUNCE_MS);
+                }
             }
         });
 
         loadProfile();
+    }
+
+    @Override
+    protected void onDestroy() {
+        highlightHandler.removeCallbacks(highlightRunnable);
+        super.onDestroy();
     }
 
     @Override
