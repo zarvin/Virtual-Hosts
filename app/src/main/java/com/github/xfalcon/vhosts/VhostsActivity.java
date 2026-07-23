@@ -1,55 +1,55 @@
-/*
- **Copyright (C) 2017  xfalcon
- **
- **This program is free software: you can redistribute it and/or modify
- **it under the terms of the GNU General Public License as published by
- **the Free Software Foundation, either version 3 of the License, or
- **(at your option) any later version.
- **
- **This program is distributed in the hope that it will be useful,
- **but WITHOUT ANY WARRANTY; without even the implied warranty of
- **MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- **GNU General Public License for more details.
- **
- **You should have received a copy of the GNU General Public License
- **along with this program.  If not, see <http://www.gnu.org/licenses/>.
- **
- */
-
 package com.github.xfalcon.vhosts;
 
-import android.content.*;
+import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
-import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
+import android.widget.ImageButton;
+import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+import androidx.preference.PreferenceManager;
+
 import com.github.clans.fab.FloatingActionButton;
+import com.github.clans.fab.FloatingActionMenu;
+import com.github.xfalcon.vhosts.data.HostProfileRepository;
+import com.github.xfalcon.vhosts.data.HostsLoader;
+import com.github.xfalcon.vhosts.data.MigrationHelper;
+import com.github.xfalcon.vhosts.model.HostProfile;
+import com.github.xfalcon.vhosts.ui.HostListAdapter;
+import com.github.xfalcon.vhosts.util.HttpUtils;
 import com.github.xfalcon.vhosts.util.LogUtils;
 import com.github.xfalcon.vhosts.vservice.VhostsService;
-import com.google.firebase.analytics.FirebaseAnalytics;
-import com.suke.widget.SwitchButton;
 
-import java.lang.reflect.Field;
+import java.io.File;
+import java.util.List;
 
 public class VhostsActivity extends AppCompatActivity {
-
     private static final String TAG = VhostsActivity.class.getSimpleName();
+    private static final int VPN_REQUEST_CODE = 0x0F;
+    private static final int SELECT_FILE_CODE = 0x05;
 
-    private FirebaseAnalytics mFirebaseAnalytics;
+    private RecyclerView recyclerView;
+    private HostListAdapter adapter;
+    private HostProfileRepository repo;
+    private Button btnLaunch;
+    private TextView emptyView;
+    private ImageButton btnAdd, btnSettings;
+    private FloatingActionMenu fabMenu;
+    private FloatingActionButton fabBoot, fabDonation;
 
-
-    private boolean waitingForVPNStart;
-
-    private BroadcastReceiver vpnStateReceiver = new BroadcastReceiver() {
+    private android.content.BroadcastReceiver vpnStateReceiver = new android.content.BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             if (VhostsService.BROADCAST_VPN_STATE.equals(intent.getAction())) {
-                if (intent.getBooleanExtra("running", false))
-                    waitingForVPNStart = false;
+                updateLaunchButton();
             }
         }
     };
@@ -57,251 +57,330 @@ public class VhostsActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        launch();
-
-//        StatService.autoTrace(this, true, false);
-        mFirebaseAnalytics = FirebaseAnalytics.getInstance(this);
-
+        launch();  // 兼容旧的 "on"/"off" 深链接启动（外部快捷方式/自动化可能依赖）
         setContentView(R.layout.activity_vhosts);
+
         LogUtils.context = getApplicationContext();
-        final SwitchButton vpnButton = findViewById(R.id.button_start_vpn);
 
-        final Button selectHosts = findViewById(R.id.button_select_hosts);
-        final FloatingActionButton fab_setting = findViewById(R.id.fab_setting);
-        final FloatingActionButton fab_boot = findViewById(R.id.fab_boot);
-        final FloatingActionButton fab_donation = findViewById(R.id.fab_donation);
+        // 初始化仓储 & Adapter
+        File profilesDir = new File(getFilesDir(), "profiles");
+        repo = new HostProfileRepository(profilesDir);
 
-        if (checkHostUri() == -1) {
-            selectHosts.setText(getString(R.string.select_hosts));
-        }
+        recyclerView = findViewById(R.id.recycler_profiles);
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+
+        adapter = new HostListAdapter(this, profilesDir);
+        adapter.setOnProfileClickListener(profile -> {
+            Intent intent = new Intent(VhostsActivity.this, HostEditActivity.class);
+            intent.putExtra(HostEditActivity.EXTRA_PROFILE_ID, profile.getId());
+            startActivity(intent);
+        });
+        recyclerView.setAdapter(adapter);
+
+        emptyView = findViewById(R.id.empty_view);
+        btnLaunch = findViewById(R.id.btn_launch);
+        btnAdd = findViewById(R.id.btn_add);
+        btnSettings = findViewById(R.id.btn_settings);
+        fabMenu = findViewById(R.id.fab_menu);
+        fabBoot = findViewById(R.id.fab_boot);
+        fabDonation = findViewById(R.id.fab_donation);
+
+        // 一次性迁移旧数据
+        migrateIfNeeded();
+
+        // 更新列表显示
+        refreshProfileList();
+
+        // 启停按钮
+        btnLaunch.setOnClickListener(v -> {
+            if (VhostsService.isRunning()) {
+                VhostsService.stopVService(VhostsActivity.this);
+            } else {
+                startVPN();
+            }
+        });
+
+        // 添加方案
+        btnAdd.setOnClickListener(v -> showAddMenu());
+
+        // 设置
+        btnSettings.setOnClickListener(v -> {
+            startActivity(new Intent(VhostsActivity.this, SettingsActivity.class));
+        });
+
+        // FAB: 开机自启
+        fabBoot.setOnClickListener(v -> {
+            if (BootReceiver.getEnabled(this)) {
+                BootReceiver.setEnabled(this, false);
+                fabBoot.setColorNormalResId(R.color.startup_off);
+            } else {
+                BootReceiver.setEnabled(this, true);
+                fabBoot.setColorNormalResId(R.color.startup_on);
+            }
+        });
         if (BootReceiver.getEnabled(this)) {
-            fab_boot.setColorNormalResId(R.color.startup_on);
+            fabBoot.setColorNormalResId(R.color.startup_on);
         }
-        vpnButton.setOnCheckedChangeListener(new SwitchButton.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(SwitchButton view, boolean isChecked) {
-                if (isChecked) {
-                    if (checkHostUri() == -1) {
-                        showDialog();
-                    } else {
-                        startVPN();
-                    }
-                } else {
-                    shutdownVPN();
-                }
-            }
-        });
-        fab_setting.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                startActivity(new Intent(getApplicationContext(), SettingsActivity.class));
-            }
-        });
-        fab_boot.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (BootReceiver.getEnabled(v.getContext())) {
-                    BootReceiver.setEnabled(v.getContext(), false);
-                    fab_boot.setColorNormalResId(R.color.startup_off);
-                } else {
-                    BootReceiver.setEnabled(v.getContext(), true);
-                    fab_boot.setColorNormalResId(R.color.startup_on);
-                }
-            }
-        });
-        selectHosts.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                selectFile();
-            }
-        });
-        selectHosts.setOnLongClickListener(new View.OnLongClickListener() {
-            @Override
-            public boolean onLongClick(View view) {
-                  startActivity(new Intent(getApplicationContext(), SettingsActivity.class));
-                return false;
-            }
-        });
-        fab_donation.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                startActivity(new Intent(getApplicationContext(), DonationActivity.class));
-            }
+
+        // FAB: 捐赠
+        fabDonation.setOnClickListener(v -> {
+            startActivity(new Intent(VhostsActivity.this, DonationActivity.class));
         });
 
+        // 广播监听 VPN 状态
         LocalBroadcastManager.getInstance(this).registerReceiver(vpnStateReceiver,
-                new IntentFilter(VhostsService.BROADCAST_VPN_STATE));
-    }
-
-    private void launch() {
-        Uri uri = getIntent().getData();
-        if (uri == null) return;
-        String data_str = uri.toString();
-        if ("on".equals(data_str)) {
-            if (!VhostsService.isRunning())
-                VhostsService.startVService(this,1);
-            finish();
-        } else if ("off".equals(data_str)) {
-            VhostsService.stopVService(this);
-            finish();
-        }
-    }
-
-    private void selectFile() {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.setType("*/*");
-        try {
-            String SHOW_ADVANCED;
-            try {
-                Field f = android.provider.DocumentsContract.class.getField("EXTRA_SHOW_ADVANCED");
-                SHOW_ADVANCED = f.get(f.getName()).toString();
-            }catch (NoSuchFieldException e){
-                LogUtils.e(TAG,e.getMessage(),e);
-                SHOW_ADVANCED = "android.content.extra.SHOW_ADVANCED";
-            }
-            intent.putExtra(SHOW_ADVANCED, true);
-        } catch (Throwable e) {
-            LogUtils.e(TAG, "SET EXTRA_SHOW_ADVANCED", e);
-        }
-
-        try {
-            intent.addCategory(Intent.CATEGORY_OPENABLE);
-            startActivityForResult(intent, SettingsFragment.SELECT_FILE_CODE);
-        } catch (Exception e) {
-            Toast.makeText(this, R.string.file_select_error, Toast.LENGTH_LONG).show();
-            LogUtils.e(TAG, "START SELECT_FILE_ACTIVE FAIL",e);
-            SharedPreferences settings = getSharedPreferences(SettingsFragment.PREFS_NAME, Context.MODE_PRIVATE);
-            SharedPreferences.Editor editor = settings.edit();
-            editor.putBoolean(SettingsFragment.IS_NET, true);
-            editor.apply();
-            startActivity(new Intent(getApplicationContext(), SettingsActivity.class));
-        }
-
-    }
-
-    private void startVPN() {
-        waitingForVPNStart = false;
-        Intent vpnIntent = VhostsService.prepare(this);
-        if (vpnIntent != null)
-            startActivityForResult(vpnIntent, SettingsFragment.VPN_REQUEST_CODE);
-        else
-            onActivityResult(SettingsFragment.VPN_REQUEST_CODE, RESULT_OK, null);
-    }
-
-    private int checkHostUri() {
-        SharedPreferences settings =  androidx.preference.PreferenceManager.getDefaultSharedPreferences(this);
-        if (settings.getBoolean(SettingsFragment.IS_NET, false)) {
-            try {
-                openFileInput(SettingsFragment.NET_HOST_FILE).close();
-                return 2;
-            } catch (Exception e) {
-                LogUtils.e(TAG, "NET HOSTS FILE NOT FOUND", e);
-                return -2;
-            }
-        } else {
-            try {
-                getContentResolver().openInputStream(Uri.parse(settings.getString(SettingsFragment.HOSTS_URI, null))).close();
-                return 1;
-            } catch (Exception e) {
-                LogUtils.e(TAG, "HOSTS FILE NOT FOUND", e);
-                return -1;
-            }
-        }
-    }
-
-    private void setUriByPREFS(Intent intent) {
-        SharedPreferences settings =  androidx.preference.PreferenceManager.getDefaultSharedPreferences(this);
-        SharedPreferences.Editor editor = settings.edit();
-        Uri uri = intent.getData();
-        try {
-            getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-            editor.putString(SettingsFragment.HOSTS_URI, uri.toString());
-            editor.apply();
-            switch (checkHostUri()){
-                case 1:{
-                    setButton(true);
-                    setButton(false);
-                    break;
-                }case -1:{
-                    Toast.makeText(this, R.string.permission_error, Toast.LENGTH_LONG).show();
-                    break;
-                }case 2:{
-                    break;
-                }case -2:{
-                    break;
-                }
-            }
-
-
-        } catch (Exception e) {
-            LogUtils.e(TAG, "permission error", e);
-        }
-
-    }
-
-    private void shutdownVPN() {
-        if (VhostsService.isRunning())
-            startService(new Intent(this, VhostsService.class).setAction(VhostsService.ACTION_DISCONNECT));
-        setButton(true);
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == SettingsFragment.VPN_REQUEST_CODE && resultCode == RESULT_OK) {
-            waitingForVPNStart = true;
-            startService(new Intent(this, VhostsService.class).setAction(VhostsService.ACTION_CONNECT));
-            setButton(false);
-        } else if (requestCode == SettingsFragment.SELECT_FILE_CODE && resultCode == RESULT_OK) {
-            setUriByPREFS(data);
-        }
+            new android.content.IntentFilter(VhostsService.BROADCAST_VPN_STATE));
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        setButton(!waitingForVPNStart && !VhostsService.isRunning());
+        refreshProfileList();
+        updateLaunchButton();
     }
 
     @Override
-    protected void onStop() {
-        super.onStop();
+    protected void onDestroy() {
+        super.onDestroy();
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(vpnStateReceiver);
     }
 
-    private void setButton(boolean enable) {
-        final SwitchButton vpnButton = (SwitchButton) findViewById(R.id.button_start_vpn);
-        final Button selectHosts = (Button) findViewById(R.id.button_select_hosts);
-        if (enable) {
-            vpnButton.setChecked(false);
-            selectHosts.setAlpha(1.0f);
-            selectHosts.setClickable(true);
+    private void refreshProfileList() {
+        List<HostProfile> profiles = repo.findAll();
+        adapter.setProfiles(profiles);
+        emptyView.setVisibility(profiles.isEmpty() ? android.view.View.VISIBLE : android.view.View.GONE);
+        recyclerView.setVisibility(profiles.isEmpty() ? android.view.View.GONE : android.view.View.VISIBLE);
+    }
+
+    private void updateLaunchButton() {
+        if (VhostsService.isRunning()) {
+            btnLaunch.setText(R.string.stop);
         } else {
-            vpnButton.setChecked(true);
-            selectHosts.setAlpha(.5f);
-            selectHosts.setClickable(false);
+            btnLaunch.setText(R.string.launch);
         }
     }
 
-    private void showDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setCancelable(false);
-        builder.setTitle(R.string.dialog_title);
-        builder.setMessage(R.string.dialog_message);
-        builder.setPositiveButton(R.string.dialog_confirm, new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialogInterface, int i) {
-                selectFile();
-            }
-        });
-
-        builder.setNegativeButton(R.string.dialog_cancel, new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialogInterface, int i) {
-                setButton(true);
-            }
-        });
-        builder.show();
+    // 兼容旧入口：通过 Intent data（"on"/"off"）从外部快捷方式/自动化触发启停后直接结束。
+    private void launch() {
+        Uri uri = getIntent().getData();
+        if (uri == null) return;
+        String data = uri.toString();
+        if ("on".equals(data)) {
+            if (!VhostsService.isRunning()) VhostsService.startVService(this, 1);
+            finish();
+        } else if ("off".equals(data)) {
+            VhostsService.stopVService(this);
+            finish();
+        }
     }
 
+    private void startVPN() {
+        Intent vpnIntent = VhostsService.prepare(this);
+        if (vpnIntent != null) {
+            startActivityForResult(vpnIntent, VPN_REQUEST_CODE);
+        } else {
+            onActivityResult(VPN_REQUEST_CODE, RESULT_OK, null);
+        }
+    }
+
+    private void showAddMenu() {
+        String[] options = {
+            getString(R.string.add_new),
+            getString(R.string.add_from_file),
+            getString(R.string.add_from_url)
+        };
+
+        new AlertDialog.Builder(this)
+            .setTitle(R.string.add_profile)
+            .setItems(options, (dialog, which) -> {
+                switch (which) {
+                    case 0:
+                        addNewProfile();
+                        break;
+                    case 1:
+                        selectFileToImport();
+                        break;
+                    case 2:
+                        addFromUrl();
+                        break;
+                }
+            })
+            .show();
+    }
+
+    private void addNewProfile() {
+        final EditText input = new EditText(this);
+        input.setHint(R.string.enter_title);
+
+        new AlertDialog.Builder(this)
+            .setTitle(R.string.add_new)
+            .setView(input)
+            .setPositiveButton(R.string.dialog_confirm, (dialog, which) -> {
+                String title = input.getText().toString().trim();
+                if (!title.isEmpty()) {
+                    try {
+                        HostProfile p = repo.create(title, "NEW", null, "");
+                        refreshProfileList();
+                        // 进编辑页
+                        Intent intent = new Intent(VhostsActivity.this, HostEditActivity.class);
+                        intent.putExtra(HostEditActivity.EXTRA_PROFILE_ID, p.getId());
+                        startActivity(intent);
+                    } catch (Exception e) {
+                        LogUtils.e(TAG, "Error creating profile", e);
+                        Toast.makeText(VhostsActivity.this, "Error creating profile", Toast.LENGTH_SHORT).show();
+                    }
+                }
+            })
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .show();
+    }
+
+    private void selectFileToImport() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.setType("*/*");
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        startActivityForResult(intent, SELECT_FILE_CODE);
+    }
+
+    private void addFromUrl() {
+        final EditText input = new EditText(this);
+        input.setHint(R.string.url_error);
+        input.setInputType(android.text.InputType.TYPE_TEXT_VARIATION_URI);
+
+        new AlertDialog.Builder(this)
+            .setTitle(R.string.add_from_url)
+            .setView(input)
+            .setPositiveButton(R.string.dialog_confirm, (dialog, which) -> {
+                String url = input.getText().toString().trim();
+                if (!isValidUrl(url)) {
+                    Toast.makeText(VhostsActivity.this, R.string.invalid_url, Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                downloadFromUrl(url);
+            })
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .show();
+    }
+
+    private void downloadFromUrl(final String url) {
+        // 后台下载
+        new Thread() {
+            public void run() {
+                try {
+                    String content = HttpUtils.get(url);
+                    HostProfile p = repo.create(Uri.parse(url).getLastPathSegment(), "URL", url, content);
+                    runOnUiThread(() -> {
+                        int records = countRecords(content);
+                        Toast.makeText(VhostsActivity.this,
+                            getString(R.string.records_count, records),
+                            Toast.LENGTH_SHORT).show();
+                        refreshProfileList();
+                    });
+                } catch (Exception e) {
+                    LogUtils.e(TAG, "Download error", e);
+                    runOnUiThread(() -> Toast.makeText(VhostsActivity.this, R.string.down_error, Toast.LENGTH_SHORT).show());
+                }
+            }
+        }.start();
+    }
+
+    private boolean isValidUrl(String str) {
+        String regex = "http(s)?://([\\w-]+\\.)+[\\w-]+(/[\\w- ./?%&=]*)?";
+        return str.matches(regex);
+    }
+
+    private int countRecords(String content) {
+        int count = 0;
+        for (String line : content.split("\n")) {
+            line = line.trim();
+            if (!line.isEmpty() && !line.startsWith("#")) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private void migrateIfNeeded() {
+        try {
+            SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(this);
+            String hostUri = settings.getString("HOST_URI", null);
+            boolean isNet = settings.getBoolean("IS_NET", false);
+
+            String content = null;
+            if (isNet) {
+                // 读 net_hosts 内容
+                try {
+                    content = readFile(openFileInput("net_hosts"));
+                } catch (Exception ignore) {}
+            } else if (hostUri != null) {
+                // 读 SAF URI 内容
+                try {
+                    content = readFile(getContentResolver().openInputStream(Uri.parse(hostUri)));
+                } catch (Exception ignore) {}
+            }
+
+            File profilesDir = new File(getFilesDir(), "profiles");
+            MigrationHelper.migrateIfNeeded(repo, profilesDir, hostUri, isNet, content);
+        } catch (Exception e) {
+            LogUtils.e(TAG, "Migration error", e);
+        }
+    }
+
+    private String readFile(java.io.InputStream is) throws Exception {
+        StringBuilder sb = new StringBuilder();
+        java.io.BufferedReader br = new java.io.BufferedReader(new java.io.InputStreamReader(is));
+        String line;
+        while ((line = br.readLine()) != null) {
+            sb.append(line).append("\n");
+        }
+        br.close();
+        is.close();
+        return sb.toString();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == VPN_REQUEST_CODE && resultCode == RESULT_OK) {
+            // VPN 授权通过
+            startService(new Intent(this, VhostsService.class).setAction(VhostsService.ACTION_CONNECT));
+        } else if (requestCode == SELECT_FILE_CODE && resultCode == RESULT_OK && data != null) {
+            // 文件导入
+            Uri fileUri = data.getData();
+            try {
+                String content = readFile(getContentResolver().openInputStream(fileUri));
+                String title = getFileName(fileUri);
+                HostProfile p = repo.create(title, "FILE", null, content);
+                int records = countRecords(content);
+                Toast.makeText(this,
+                    getString(R.string.records_count, records),
+                    Toast.LENGTH_SHORT).show();
+                refreshProfileList();
+            } catch (Exception e) {
+                LogUtils.e(TAG, "Import error", e);
+                Toast.makeText(this, "Import failed", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    private String getFileName(Uri uri) {
+        android.database.Cursor cursor = null;
+        try {
+            cursor = getContentResolver().query(uri, null, null, null, null);
+            if (cursor != null && cursor.moveToFirst()) {
+                int nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
+                if (nameIndex >= 0) {
+                    String name = cursor.getString(nameIndex);
+                    if (name != null && !name.isEmpty()) {
+                        return name.replaceAll("\\.[^.]*$", "");  // 去掉扩展名
+                    }
+                }
+            }
+        } catch (Exception e) {
+            LogUtils.e(TAG, "getFileName error", e);
+        } finally {
+            if (cursor != null) cursor.close();
+        }
+        return "hosts";  // 取不到文件名时的兜底标题
+    }
 }
