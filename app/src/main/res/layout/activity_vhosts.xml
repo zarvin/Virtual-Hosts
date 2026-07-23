@@ -17,6 +17,7 @@
         android:layout_weight="1"
         android:gravity="center"
         android:text="@string/no_profiles"
+        android:textColor="@color/secondary_text"
         android:textSize="16sp"
         android:visibility="gone" />
 
