@@ -30,6 +30,11 @@ public class HostsLoader {
         return enabled.size();
     }
 
+    // 供服务启动时的首次加载复用同一串行队列，与运行时热重载全局串行，避免两加载入口竞态。
+    public static void runOnLoader(Runnable task) {
+        RELOAD_EXECUTOR.execute(task);
+    }
+
     // 运行时重载：仅当 VPN 正在运行时，后台重建解析表，隧道不断。
     public static void reloadIfRunning(final Context context) {
         if (!VhostsService.isRunning()) {

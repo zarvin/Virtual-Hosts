@@ -97,5 +97,11 @@ public class UDPInput implements Runnable
         {
             LogUtils.w(TAG, e.toString(), e);
         }
+        catch (Exception e)
+        {
+            // 停止时主线程可能已关闭 selector，select() 抛 ClosedSelectorException 等未受检异常；
+            // 兜住以免穿出 run()（固定线程池里会静默丢线程，极端下影响进程稳定）。
+            LogUtils.w(TAG, "Stopping on " + e);
+        }
     }
 }

@@ -40,8 +40,12 @@ public class DnsChange {
 
 
     public static ByteBuffer handle_dns_packet(Packet packet) {
-        if (DOMAINS_IP_MAPS4 == null) {
-            LogUtils.d(TAG, "DOMAINS_IP_MAPS IS　NULL　HOST FILE ERROR");
+        // 开头快照两张 volatile 表，按查询类型选用；任一未加载完成（首载发布窗口）则透传，
+        // 避免 AAAA 查询在 MAPS6 尚未发布时读到 null 触发 NPE。
+        ConcurrentHashMap<String, String> map4 = DOMAINS_IP_MAPS4;
+        ConcurrentHashMap<String, String> map6 = DOMAINS_IP_MAPS6;
+        if (map4 == null || map6 == null) {
+            LogUtils.d(TAG, "DOMAINS_IP_MAPS not loaded yet");
             return null;
         }
         try {
@@ -55,12 +59,13 @@ public class DnsChange {
             ConcurrentHashMap<String, String> DOMAINS_IP_MAPS;
             int type = question.getType();
             if (type == Type.A)
-                DOMAINS_IP_MAPS = DOMAINS_IP_MAPS4;
+                DOMAINS_IP_MAPS = map4;
             else if (type == Type.AAAA)
-                DOMAINS_IP_MAPS = DOMAINS_IP_MAPS6;
+                DOMAINS_IP_MAPS = map6;
             else return null;
             Name query_domain = message.getQuestion().getName();
-            String query_string = query_domain.toString();
+            // DNS 域名大小写不敏感：查询侧统一小写，与解析侧存储的小写 key 对齐
+            String query_string = query_domain.toString().toLowerCase(java.util.Locale.ROOT);
             LogUtils.d(TAG, "query: " + question.getType() + " :" + query_string);
             if (!DOMAINS_IP_MAPS.containsKey(query_string)) {
                 query_string = "." + query_string;
@@ -141,11 +146,17 @@ public class DnsChange {
                 } catch (Exception e) {
                     continue;
                 }
-                String domain = matcher.group(3).trim() + ".";
-                if (ip.contains(":")) {
-                    map6.putIfAbsent(domain, ip);  // 靠前优先
-                } else {
-                    map4.putIfAbsent(domain, ip);  // 靠前优先
+                // 支持标准 hosts 的「一 IP 多主机」：按空白拆分逐个入表；域名统一小写归一
+                String domainsField = matcher.group(3).trim();
+                if (domainsField.isEmpty()) continue;
+                for (String d : domainsField.split("\\s+")) {
+                    if (d.isEmpty()) continue;
+                    String domain = d.toLowerCase(java.util.Locale.ROOT) + ".";
+                    if (ip.contains(":")) {
+                        map6.putIfAbsent(domain, ip);  // 靠前优先
+                    } else {
+                        map4.putIfAbsent(domain, ip);  // 靠前优先
+                    }
                 }
             }
         }

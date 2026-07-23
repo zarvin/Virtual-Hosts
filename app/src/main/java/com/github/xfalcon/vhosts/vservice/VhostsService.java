@@ -135,7 +135,9 @@ public class VhostsService extends VpnService {
 
     private void setupHostFile() {
         final HostProfileRepository repo = new HostProfileRepository(new File(getFilesDir(), "profiles"));
-        new Thread() {
+        // 提交到 HostsLoader 的单线程队列，与运行时热重载全局串行：
+        // 否则服务启动加载与用户此刻编辑触发的热重载可能"后发先至"，把新编辑覆盖回旧表。
+        HostsLoader.runOnLoader(new Runnable() {
             public void run() {
                 try {
                     if (repo.findEnabled().isEmpty()) {
@@ -155,7 +157,7 @@ public class VhostsService extends VpnService {
                     LogUtils.e(TAG, "Error loading profiles", e);
                 }
             }
-        }.start();
+        });
     }
 
     private void setupVPN() {
@@ -261,7 +263,16 @@ public class VhostsService extends VpnService {
 
     private void stopVService() {
 //        unregisterNetReceiver();
-        if (executorService != null) executorService.shutdownNow();
+        if (executorService != null) {
+            executorService.shutdownNow();
+            try {
+                // 等 worker 线程响应中断退出，再关闭 selector/接口，
+                // 避免 worker 仍阻塞在 select() 时被关闭而抛 ClosedSelectorException。
+                executorService.awaitTermination(2, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
         isRunning = false;
         // 通知 UI VPN 已停止，让启停按钮切回「启动」（与 onCreate 里发送 running=true 对称）
         LocalBroadcastManager.getInstance(this).sendBroadcast(new Intent(BROADCAST_VPN_STATE).putExtra("running", false));
@@ -343,13 +354,20 @@ public class VhostsService extends VpnService {
                     if (readBytes > 0) {
                         dataSent = true;
                         bufferToNetwork.flip();
-                        Packet packet = new Packet(bufferToNetwork);
-                        if (packet.isUDP()) {
-                            deviceToNetworkUDPQueue.offer(packet);
-                        } else if (packet.isTCP()) {
-                            deviceToNetworkTCPQueue.offer(packet);
-                        } else {
-                            LogUtils.w(TAG, "Unknown packet type");
+                        try {
+                            Packet packet = new Packet(bufferToNetwork);
+                            if (packet.isUDP()) {
+                                deviceToNetworkUDPQueue.offer(packet);
+                            } else if (packet.isTCP()) {
+                                deviceToNetworkTCPQueue.offer(packet);
+                            } else {
+                                LogUtils.w(TAG, "Unknown packet type");
+                                dataSent = false;
+                            }
+                        } catch (RuntimeException e) {
+                            // 畸形/截断包在 Packet 解析处会抛未受检异常（如 BufferUnderflowException）；
+                            // 丢弃坏包并复用缓冲，绝不让它穿出 run() 打死泵线程/整个进程。
+                            LogUtils.w(TAG, "Drop malformed packet: " + e);
                             dataSent = false;
                         }
                     } else {

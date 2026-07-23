@@ -24,6 +24,7 @@ import android.appwidget.AppWidgetProvider;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Build;
 import android.widget.RemoteViews;
 import com.github.xfalcon.vhosts.vservice.VhostsService;
 
@@ -38,8 +39,14 @@ public class QuickStartWidget extends AppWidgetProvider {
                                 int appWidgetId) {
 
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.quick_start_widget);
-        Intent intent = new Intent().setAction(ACTION_QUICK_START_BUTTON);
-        PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+        // 显式指向本组件 + FLAG_IMMUTABLE：避免隐式可变 PendingIntent 被劫持；
+        // 且 Android 12(API31)+ 要求显式声明可变性，否则创建即抛异常导致 Widget 失效。
+        Intent intent = new Intent(context, QuickStartWidget.class).setAction(ACTION_QUICK_START_BUTTON);
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            flags |= PendingIntent.FLAG_IMMUTABLE;
+        }
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0, intent, flags);
         views.setImageViewResource(R.id.imageButton, R.drawable.quick_start_off);
         views.setOnClickPendingIntent(R.id.imageButton, pendingIntent);
         appWidgetManager.updateAppWidget(appWidgetId, views);
@@ -55,21 +62,20 @@ public class QuickStartWidget extends AppWidgetProvider {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        String action = intent.getAction();
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.quick_start_widget);
 
-        if (action.equals(ACTION_QUICK_START_BUTTON)) {
+        // null-safe 比较，防 action 为 null 时 NPE
+        if (ACTION_QUICK_START_BUTTON.equals(intent.getAction())) {
             if (VhostsService.isRunning()) {
                 VhostsService.stopVService(context);
                 views.setImageViewResource(R.id.imageButton, R.drawable.quick_start_off);
             } else {
-                VhostsService.startVService(context,1);
+                VhostsService.startVService(context, 1);
                 views.setImageViewResource(R.id.imageButton, R.drawable.quick_start_on);
             }
         }
-        AppWidgetManager appWidgetManager=AppWidgetManager.getInstance(context);
-        appWidgetManager.updateAppWidget(new ComponentName(context,QuickStartWidget.class),views);
+        AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(context);
+        appWidgetManager.updateAppWidget(new ComponentName(context, QuickStartWidget.class), views);
         super.onReceive(context, intent);
     }
 }
-

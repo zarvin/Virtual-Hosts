@@ -120,11 +120,15 @@ public class HostListAdapter extends RecyclerView.Adapter<HostListAdapter.ViewHo
         holder.switchView.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                int pos = holder.getBindingAdapterPosition();
+                if (pos == RecyclerView.NO_POSITION || pos >= profiles.size()) return;
                 try {
-                    HostProfile updated = profile.withEnabled(isChecked);
+                    HostProfile updated = profiles.get(pos).withEnabled(isChecked);
+                    // 同步内存：否则随后拖拽的 persistOrder 会用陈旧对象 withOrder 覆盖回旧 enabled
+                    profiles.set(pos, updated);
                     repo.updateMeta(updated);
                     HostsLoader.reloadIfRunning(context);
-                    LogUtils.d(TAG, "Profile " + profile.getId() + " enabled=" + isChecked);
+                    LogUtils.d(TAG, "Profile " + updated.getId() + " enabled=" + isChecked);
                 } catch (Exception e) {
                     LogUtils.e(TAG, "Error updating profile", e);
                 }

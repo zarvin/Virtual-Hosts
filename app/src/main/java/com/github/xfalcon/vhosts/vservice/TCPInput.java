@@ -85,6 +85,11 @@ public class TCPInput implements Runnable
         {
             LogUtils.w(TAG, e.toString(), e);
         }
+        catch (Exception e)
+        {
+            // 停止时 selector 被主线程关闭，select() 抛 ClosedSelectorException 等；兜住以免穿出 run()。
+            LogUtils.w(TAG, "Stopping on " + e);
+        }
     }
 
     private void processConnect(SelectionKey key, Iterator<SelectionKey> keyIterator)

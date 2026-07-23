@@ -198,15 +198,19 @@ public class VhostsActivity extends AppCompatActivity {
 
     // 拖拽结束把当前顺序写回 order（越靠上 order 越小 = 合并优先级越高）
     private void persistOrder() {
+        // 主线程快照当前顺序，避免后台线程与再次拖拽并发读写同一可变 list
+        final java.util.List<HostProfile> snapshot = new java.util.ArrayList<>(adapter.getProfiles());
         new Thread() {
             public void run() {
                 try {
-                    java.util.List<HostProfile> list = adapter.getProfiles();
-                    for (int i = 0; i < list.size(); i++) {
-                        HostProfile p = list.get(i);
+                    for (int i = 0; i < snapshot.size(); i++) {
+                        HostProfile p = snapshot.get(i);
                         if (p.getOrder() != i) repo.updateMeta(p.withOrder(i));
                     }
                     HostsLoader.reloadIfRunning(VhostsActivity.this);
+                    // 用盘上新对象刷新内存，使各项 order 与位置一致；否则内存对象 order 陈旧会
+                    // 让下一次拖拽的 order!=i 判断失效、静默不保存
+                    runOnUiThread(() -> refreshProfileList());
                 } catch (Exception e) {
                     LogUtils.e(TAG, "persistOrder error", e);
                 }
@@ -272,7 +276,7 @@ public class VhostsActivity extends AppCompatActivity {
 
     // 长按方案：重命名 / 删除
     private void showProfileActions(final HostProfile profile) {
-        final boolean isUrl = "URL".equals(profile.getSourceType()) && profile.getSourceRef() != null;
+        final boolean isUrl = HostProfile.TYPE_URL.equals(profile.getSourceType()) && profile.getSourceRef() != null;
         final java.util.List<String> actions = new java.util.ArrayList<>();
         actions.add(getString(R.string.rename));
         if (isUrl) actions.add(getString(R.string.refresh));  // 仅 URL 订阅方案可刷新
@@ -364,7 +368,7 @@ public class VhostsActivity extends AppCompatActivity {
                 String title = input.getText().toString().trim();
                 if (!title.isEmpty()) {
                     try {
-                        HostProfile p = repo.create(title, "NEW", null, "");
+                        HostProfile p = repo.create(title, HostProfile.TYPE_NEW, null, "");
                         refreshProfileList();
                         // 进编辑页
                         Intent intent = new Intent(VhostsActivity.this, HostEditActivity.class);
@@ -468,7 +472,8 @@ public class VhostsActivity extends AppCompatActivity {
                     String name = Uri.parse(url).getLastPathSegment();
                     if (name == null || name.isEmpty()) name = Uri.parse(url).getHost();
                     if (name == null || name.isEmpty()) name = "hosts";
-                    repo.create(name, "URL", url, content);
+                    repo.create(name, HostProfile.TYPE_URL, url, content);
+                    HostsLoader.reloadIfRunning(VhostsActivity.this);  // 运行中新增订阅即时生效
                     runOnUiThread(() -> {
                         int records = countRecords(content);
                         Toast.makeText(VhostsActivity.this,
@@ -557,7 +562,8 @@ public class VhostsActivity extends AppCompatActivity {
                     try {
                         final String content = readFile(getContentResolver().openInputStream(fileUri));
                         final String title = getFileName(fileUri);
-                        repo.create(title, "FILE", null, content);
+                        repo.create(title, HostProfile.TYPE_FILE, null, content);
+                        HostsLoader.reloadIfRunning(VhostsActivity.this);  // 运行中导入文件即时生效
                         runOnUiThread(() -> {
                             int records = countRecords(content);
                             Toast.makeText(VhostsActivity.this,

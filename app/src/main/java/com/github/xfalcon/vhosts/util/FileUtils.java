@@ -18,17 +18,18 @@
 
 package com.github.xfalcon.vhosts.util;
 
+import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 
 public class FileUtils {
 
-
-    public static boolean writeFile(OutputStream o, String content) throws Exception {
-        o.write(content.getBytes());
-        o.flush();
-        o.close();
+    // 用 try-with-resources 确保异常时也关闭流（不泄露文件句柄）；UTF-8 与仓储写入统一。
+    public static boolean writeFile(OutputStream o, String content) throws IOException {
+        try (OutputStream out = o) {
+            out.write(content.getBytes(StandardCharsets.UTF_8));
+            out.flush();
+        }
         return true;
-
     }
-
 }
