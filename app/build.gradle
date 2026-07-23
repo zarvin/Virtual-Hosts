@@ -29,12 +29,27 @@ android {
         }
 
     }
+    signingConfigs {
+        release {
+            // 从环境变量读取（CI 用 Secrets 注入）。未配置时字段留空，
+            // release 会退回 debug 签名（见下方 buildTypes），保证也能出可安装的包。
+            def ksFile = System.getenv("KEYSTORE_FILE")
+            if (ksFile) {
+                storeFile file(ksFile)
+                storePassword System.getenv("KEYSTORE_PASSWORD")
+                keyAlias System.getenv("KEY_ALIAS")
+                keyPassword System.getenv("KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled true
             zipAlignEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // 配了正式 keystore 用正式签名，否则退回 debug 签名（仍可安装）
+            signingConfig System.getenv("KEYSTORE_FILE") ? signingConfigs.release : signingConfigs.debug
         }
         debug {
             buildConfigField("boolean", "IS_GooglePlay", "false")
