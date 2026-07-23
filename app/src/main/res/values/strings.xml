@@ -61,4 +61,24 @@
     <string name="no_net_record">warning! net hosts file no dns record, please check</string>
     <string name="no_local_record">warning! local hosts file no dns record, please check</string>
 
+    <string name="host_profiles_title">Host Profiles</string>
+    <string name="no_profiles">No profiles yet. Add one to get started.</string>
+    <string name="add_profile">Add Profile</string>
+    <string name="add_new">Create New</string>
+    <string name="add_from_file">Import from File</string>
+    <string name="add_from_url">Download from URL</string>
+    <string name="edit">Edit</string>
+    <string name="delete">Delete</string>
+    <string name="rename">Rename</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="title">Title</string>
+    <string name="no_profiles_enabled">No profiles enabled. Please enable at least one profile.</string>
+    <string name="confirm_delete">Delete this profile?</string>
+    <string name="launch">Launch</string>
+    <string name="stop">Stop</string>
+    <string name="enter_title">Enter profile name</string>
+    <string name="invalid_url">Invalid URL format</string>
+    <string name="download_in_progress">Downloading...</string>
+    <string name="records_count">%d records loaded</string>
 </resources>

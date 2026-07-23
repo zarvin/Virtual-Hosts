@@ -56,4 +56,25 @@
 
     <string name="no_net_record">提示! 网络文件不存在DNS记录,请检查</string>
     <string name="no_local_record">提示! 本地文件不存在DNS记录,请检查</string>
+
+    <string name="host_profiles_title">主机方案</string>
+    <string name="no_profiles">暂无方案，点击添加开始使用</string>
+    <string name="add_profile">添加方案</string>
+    <string name="add_new">新建空白</string>
+    <string name="add_from_file">从文件导入</string>
+    <string name="add_from_url">从URL下载</string>
+    <string name="edit">编辑</string>
+    <string name="delete">删除</string>
+    <string name="rename">重命名</string>
+    <string name="save">保存</string>
+    <string name="cancel">取消</string>
+    <string name="title">标题</string>
+    <string name="no_profiles_enabled">未启用任何方案，请至少启用一个</string>
+    <string name="confirm_delete">删除此方案？</string>
+    <string name="launch">启动</string>
+    <string name="stop">停止</string>
+    <string name="enter_title">输入方案名称</string>
+    <string name="invalid_url">URL格式不正确</string>
+    <string name="download_in_progress">下载中...</string>
+    <string name="records_count">已加载 %d 条记录</string>
 </resources>
