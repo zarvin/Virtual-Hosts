@@ -90,6 +90,15 @@ public class SettingsFragment extends PreferenceFragmentCompat implements
     }
 
     @Override
+    public void onViewCreated(android.view.View view, Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        // 让 preference 列表透明，露出 activity 的 colorSurface，与主页背景保持一致
+        if (getListView() != null) {
+            getListView().setBackgroundColor(android.graphics.Color.TRANSPARENT);
+        }
+    }
+
+    @Override
     public void onResume() {
         super.onResume();
         getPreferenceManager().getSharedPreferences().registerOnSharedPreferenceChangeListener(this);
