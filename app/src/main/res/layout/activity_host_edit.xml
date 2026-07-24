@@ -1,23 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@color/content_bg">
 
-    <EditText
-        android:id="@+id/edit_title"
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/edit_title_layout"
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingLeft="16dp"
-        android:paddingRight="16dp"
-        android:paddingTop="12dp"
-        android:paddingBottom="12dp"
-        android:hint="@string/title"
-        android:textColor="@color/content_text"
-        android:textColorHint="@color/hint_text"
-        android:inputType="text"
-        android:singleLine="true" />
+        android:layout_marginLeft="16dp"
+        android:layout_marginRight="16dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="8dp"
+        android:hint="@string/title">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/edit_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="text"
+            android:maxLines="1"
+            android:textColor="@color/content_text" />
+    </com.google.android.material.textfield.TextInputLayout>
 
     <View
         android:layout_width="match_parent"
